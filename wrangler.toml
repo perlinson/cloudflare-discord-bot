@@ -1,8 +1,44 @@
-name = "awwbot"
+name = "globalcord"
 main = "./src/server.js"
-compatibility_date="2023-05-18"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+# KV Namespace bindings
+[[kv_namespaces]]
+binding = "KV"
+id = "8e32c4000e18472bb454c60ebfca33db"
+preview_id = "8e32c4000e18472bb454c60ebfca33db"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "globalcord-db"
+database_id = "56b6a46b-f072-468d-839b-371961e035b7"
+
+# R2 Bucket
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "globalcord-storage"
+preview_bucket_name = "globalcord-storage-dev"
+
+# Backup R2 Bucket
+[[r2_buckets]]
+binding = "BACKUP_BUCKET"
+bucket_name = "globalcord-backup"
+preview_bucket_name = "globalcord-backup-dev"
+
+# Cron Triggers for backup and monitoring
+[triggers]
+crons = ["0 0 * * *", "*/15 * * * *"]  # Daily backup at midnight, monitoring every 15 minutes
+
+[vars]
+ENVIRONMENT = "production"
 
 # [secrets]
 # DISCORD_TOKEN
 # DISCORD_PUBLIC_KEY
 # DISCORD_APPLICATION_ID
+# ALERT_WEBHOOK_URL

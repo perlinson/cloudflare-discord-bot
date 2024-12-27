@@ -1,39 +1,30 @@
 {
-  "name": "awwbot",
+  "name": "globalcord",
   "version": "1.0.0",
-  "description": "A simple discord bot that uses intents to post pictures from r/aww",
+  "description": "A modern Discord bot powered by Cloudflare Workers",
   "type": "module",
-  "private": true,
   "main": "src/server.js",
   "scripts": {
     "start": "wrangler dev",
-    "ngrok": "ngrok http 8787",
-    "test": "c8 mocha test",
-    "fix": "eslint --fix '**/*.js'",
-    "lint": "eslint '**/*.js'",
+    "deploy": "wrangler deploy",
     "register": "node src/register.js",
-    "publish": "wrangler deploy"
+    "test": "jest"
   },
-  "keywords": [],
-  "author": "Justin Beckwith <justin.beckwith@gmail.com>",
-  "license": "MIT",
   "dependencies": {
     "discord-interactions": "^4.0.0",
-    "itty-router": "^5.0.9"
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "https-proxy-agent": "^7.0.6",
+    "itty-router": "^5.0.9",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.1.1",
-    "c8": "^10.1.2",
-    "chai": "^5.0.0",
-    "dotenv": "^16.0.3",
-    "eslint": "^9.1.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.1.3",
-    "globals": "^15.0.0",
-    "mocha": "^11.0.0",
-    "ngrok": "^5.0.0-beta.2",
-    "prettier": "^3.2.5",
-    "sinon": "^19.0.2",
-    "wrangler": "^3.0.1"
-  }
+    "jest": "^29.7.0",
+    "wrangler": "^3.96.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Your Name",
+  "license": "MIT"
 }

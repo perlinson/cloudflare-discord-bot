@@ -4,108 +4,138 @@
 
 import { AutoRouter } from 'itty-router';
 import {
-  InteractionResponseType,
   InteractionType,
+  InteractionResponseType,
   verifyKey,
 } from 'discord-interactions';
-import { AWW_COMMAND, INVITE_COMMAND } from './commands.js';
-import { getCuteUrl } from './reddit.js';
-import { InteractionResponseFlags } from 'discord-interactions';
 
-class JsonResponse extends Response {
-  constructor(body, init) {
-    const jsonBody = JSON.stringify(body);
-    init = init || {
-      headers: {
-        'content-type': 'application/json;charset=UTF-8',
-      },
-    };
-    super(jsonBody, init);
+// Import commands
+import { CHATBOT_COMMANDS } from './chatbot/commands.js';
+import { ECONOMY_COMMANDS } from './economy/commands.js';
+import { IMAGEAI_COMMANDS as IMAGE_COMMANDS } from './imageai/commands.js';
+import { LEVELS_COMMANDS as LEVEL_COMMANDS } from './levels/commands.js';
+import { NETWORK_COMMANDS } from './network/commands.js';
+import { ONBOARDING_COMMANDS } from './onboarding/commands.js';
+import { PHONE_COMMANDS } from './phone/commands.js';
+import { SHARE_COMMANDS } from './share/commands.js';
+
+// Import handlers
+import { handleChatbotCommands as handleChatCommands } from './chatbot/handlers.js';
+import { handleEconomyCommands } from './economy/handlers.js';
+import { handleImageAICommands as handleImageCommands } from './imageai/handlers.js';
+import { handleLevelsCommands as handleLevelCommands } from './levels/handlers.js';
+import { handleNetworkCommands } from './network/handlers.js';
+import { handleOnboardingCommands } from './onboarding/handlers.js';
+import { handlePhoneCommands } from './phone/handlers.js';
+import { handleShareCommands } from './share/handlers.js';
+
+// Create router
+const router = AutoRouter();
+
+// Register commands
+const ALL_COMMANDS = [
+  ...Object.values(CHATBOT_COMMANDS),
+  ...Object.values(ECONOMY_COMMANDS),
+  ...Object.values(IMAGE_COMMANDS),
+  ...Object.values(LEVEL_COMMANDS),
+  ...Object.values(NETWORK_COMMANDS),
+  ...Object.values(ONBOARDING_COMMANDS),
+  ...Object.values(PHONE_COMMANDS),
+  ...Object.values(SHARE_COMMANDS),
+];
+
+// Discord request verification
+async function verifyDiscordRequest(request) {
+  const signature = request.headers.get('x-signature-ed25519');
+  const timestamp = request.headers.get('x-signature-timestamp');
+  const body = await request.clone().text();
+  
+  if (!verifyKey(body, signature, timestamp, process.env.DISCORD_PUBLIC_KEY)) {
+    return new Response('Invalid request signature', { status: 401 });
   }
 }
 
-const router = AutoRouter();
+// Handle interactions
+router.post('/interactions', async (request) => {
+  const { type, data } = await request.json();
 
-/**
- * A simple :wave: hello page to verify the worker is working.
- */
-router.get('/', (request, env) => {
-  return new Response(`👋 ${env.DISCORD_APPLICATION_ID}`);
-});
-
-/**
- * Main route for all requests sent from Discord.  All incoming messages will
- * include a JSON payload described here:
- * https://discord.com/developers/docs/interactions/receiving-and-responding#interaction-object
- */
-router.post('/', async (request, env) => {
-  const { isValid, interaction } = await server.verifyDiscordRequest(
-    request,
-    env,
-  );
-  if (!isValid || !interaction) {
-    return new Response('Bad request signature.', { status: 401 });
+  if (type === InteractionType.PING) {
+    return new Response(
+      JSON.stringify({ type: InteractionResponseType.PONG }),
+      { headers: { 'Content-Type': 'application/json' }}
+    );
   }
 
-  if (interaction.type === InteractionType.PING) {
-    // The `PING` message is used during the initial webhook handshake, and is
-    // required to configure the webhook in the developer portal.
-    return new JsonResponse({
-      type: InteractionResponseType.PONG,
-    });
-  }
+  if (type === InteractionType.APPLICATION_COMMAND) {
+    const { name } = data;
+    let response;
 
-  if (interaction.type === InteractionType.APPLICATION_COMMAND) {
-    // Most user commands will come as `APPLICATION_COMMAND`.
-    switch (interaction.data.name.toLowerCase()) {
-      case AWW_COMMAND.name.toLowerCase(): {
-        const cuteUrl = await getCuteUrl();
-        return new JsonResponse({
+    try {
+      switch(true) {
+        case name.startsWith('chat'):
+          response = await handleChatCommands(data);
+          break;
+        case name.startsWith('economy'):
+          response = await handleEconomyCommands(data);
+          break;
+        case name.startsWith('image'):
+          response = await handleImageCommands(data);
+          break;
+        case name.startsWith('level'):
+          response = await handleLevelCommands(data);
+          break;
+        case name.startsWith('network'):
+          response = await handleNetworkCommands(data);
+          break;
+        case name.startsWith('onboarding'):
+          response = await handleOnboardingCommands(data);
+          break;
+        case name.startsWith('phone'):
+          response = await handlePhoneCommands(data);
+          break;
+        case name.startsWith('share'):
+          response = await handleShareCommands(data);
+          break;
+        default:
+          return new Response('Command not found', { status: 404 });
+      }
+
+      return new Response(
+        JSON.stringify(response),
+        { headers: { 'Content-Type': 'application/json' }}
+      );
+
+    } catch (error) {
+      console.error('Error handling command:', error);
+      return new Response(
+        JSON.stringify({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: cuteUrl,
+            content: 'An error occurred while processing your command.',
+            flags: 64, // EPHEMERAL
           },
-        });
-      }
-      case INVITE_COMMAND.name.toLowerCase(): {
-        const applicationId = env.DISCORD_APPLICATION_ID;
-        const INVITE_URL = `https://discord.com/oauth2/authorize?client_id=${applicationId}&scope=applications.commands`;
-        return new JsonResponse({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: INVITE_URL,
-            flags: InteractionResponseFlags.EPHEMERAL,
-          },
-        });
-      }
-      default:
-        return new JsonResponse({ error: 'Unknown Type' }, { status: 400 });
+        }),
+        { headers: { 'Content-Type': 'application/json' }}
+      );
     }
   }
 
-  console.error('Unknown Type');
-  return new JsonResponse({ error: 'Unknown Type' }, { status: 400 });
+  return new Response('Unknown interaction type', { status: 400 });
 });
-router.all('*', () => new Response('Not Found.', { status: 404 }));
 
-async function verifyDiscordRequest(request, env) {
-  const signature = request.headers.get('x-signature-ed25519');
-  const timestamp = request.headers.get('x-signature-timestamp');
-  const body = await request.text();
-  const isValidRequest =
-    signature &&
-    timestamp &&
-    (await verifyKey(body, signature, timestamp, env.DISCORD_PUBLIC_KEY));
-  if (!isValidRequest) {
-    return { isValid: false };
-  }
+// Health check
+router.get('/health', () => new Response('OK'));
 
-  return { interaction: JSON.parse(body), isValid: true };
-}
+// Export worker
+export default {
+  async fetch(request, env, ctx) {
+    request.env = env;
+    
+    if (request.method === 'POST') {
+      const verificationResponse = verifyDiscordRequest(request);
+      if (verificationResponse) return verificationResponse;
+    }
 
-const server = {
-  verifyDiscordRequest,
-  fetch: router.fetch,
+    return router.handle(request);
+  },
 };
-
-export default server;
