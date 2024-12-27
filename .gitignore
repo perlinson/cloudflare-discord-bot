@@ -3,3 +3,4 @@ coverage
 .dev.vars
 .wrangler
 GC+
+.env
