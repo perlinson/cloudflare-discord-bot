@@ -1,36 +1,44 @@
 import { InteractionResponseType, InteractionResponseFlags } from 'discord-interactions';
-import { CHATBOT_CONFIG } from './config.js';
 import { chatbotData } from './dataLoader.js';
+import { CHATBOT_CONFIG } from './config.js';
+import { initialize } from '../utils/storage.js';
 
-export async function handleChatbotCommands(interaction, env) {
+export async function handleChatCommands(interaction, env) {
     const { type, data, member, guild_id } = interaction;
-    const commandName = data.name.toLowerCase();
+    const subCommand = data.options[0];
+    const commandName = subCommand.name.toLowerCase();
+    const options = subCommand.options || [];
     const userId = member.user.id;
 
-    // Initialize storage
-    chatbotData.initialize(env);
+    // Initialize storage only once
+    initialize('chatbot', env, (env) => {
+        chatbotData.initialize(env);
+    });
 
     try {
         switch (commandName) {
-            case 'togglechat':
-                return await handleToggleChat(interaction);
-            case 'chatconfig':
-                return await handleChatConfig(interaction);
-            case 'clearchat':
-                return await handleClearChat(interaction);
+            case 'toggle':
+                return await handleToggleChat(interaction, env);
+            case 'config':
+                const setting = options.find(opt => opt.name === 'setting')?.value;
+                const value = options.find(opt => opt.name === 'value')?.value;
+                return await handleConfig(interaction, setting, value, env);
+            case 'clear':
+                return await handleClearChat(interaction, env);
             case 'character':
-                return await handleCharacterChange(interaction);
+                const character = options.find(opt => opt.name === 'character')?.value;
+                return await handleCharacter(interaction, character, env);
             default:
                 return {
                     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                     data: {
-                        content: 'Unknown command',
+                        content: 'Unknown chat command',
                         flags: InteractionResponseFlags.EPHEMERAL,
                     },
                 };
         }
     } catch (error) {
-        console.error('Error handling chatbot command:', error);
+        console.error('Error handling chat command:', error);
         return {
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
@@ -41,7 +49,7 @@ export async function handleChatbotCommands(interaction, env) {
     }
 }
 
-async function handleToggleChat(interaction) {
+async function handleToggleChat(interaction, env) {
     const { guild_id, data, member } = interaction;
     const userId = member.user.id;
 
@@ -86,60 +94,31 @@ async function handleToggleChat(interaction) {
     }
 }
 
-async function handleChatConfig(interaction) {
+async function handleConfig(interaction, setting, value, env) {
     const { guild_id, data } = interaction;
-    const subcommand = data.options[0].name;
 
-    switch (subcommand) {
-        case 'view': {
-            const settings = await chatbotData.getConfig(guild_id);
+    try {
+        await chatbotData.updateConfig(guild_id, { [setting]: value });
 
-            return {
-                type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-                data: {
-                    embeds: [{
-                        title: '⚙️ Chatbot Settings',
-                        fields: Object.entries(settings).map(([key, value]) => ({
-                            name: key,
-                            value: value.toString(),
-                            inline: true,
-                        })),
-                        color: parseInt(CHATBOT_CONFIG.ui.colors.info.replace('#', ''), 16),
-                    }],
-                    flags: InteractionResponseFlags.EPHEMERAL,
-                },
-            };
-        }
-
-        case 'update': {
-            const settings = {};
-            for (const option of data.options[0].options) {
-                settings[option.name] = option.value;
-            }
-
-            await chatbotData.updateConfig(guild_id, settings);
-
-            return {
-                type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-                data: {
-                    content: '✅ Settings updated successfully',
-                    flags: InteractionResponseFlags.EPHEMERAL,
-                },
-            };
-        }
-
-        default:
-            return {
-                type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-                data: {
-                    content: 'Unknown subcommand',
-                    flags: InteractionResponseFlags.EPHEMERAL,
-                },
-            };
+        return {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                content: '✅ Settings updated successfully',
+                flags: InteractionResponseFlags.EPHEMERAL,
+            },
+        };
+    } catch (error) {
+        return {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                content: `❌ Error: ${error.message}`,
+                flags: InteractionResponseFlags.EPHEMERAL,
+            },
+        };
     }
 }
 
-async function handleClearChat(interaction) {
+async function handleClearChat(interaction, env) {
     const { guild_id, data } = interaction;
     const userId = data.user.id;
 
@@ -153,10 +132,9 @@ async function handleClearChat(interaction) {
     };
 }
 
-async function handleCharacterChange(interaction) {
+async function handleCharacter(interaction, character, env) {
     const { guild_id, data } = interaction;
     const userId = data.user.id;
-    const character = data.options[0].value;
 
     if (!CHATBOT_CONFIG.characters[character]) {
         return {

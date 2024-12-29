@@ -4,3 +4,4 @@ coverage
 .wrangler
 GC+
 .env
+.DS_Store

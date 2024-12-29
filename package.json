@@ -1,18 +1,21 @@
 {
-  "name": "globalcord",
+  "name": "cloudflare-discord-bot",
   "version": "1.0.0",
-  "description": "A modern Discord bot powered by Cloudflare Workers",
+  "description": "",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "start": "wrangler dev",
+    "updateCommands": "node src/register.js",
+    "dev": "wrangler dev src/server.js --local",
+    "dev--": "miniflare src/server.js --kv KV --d1 DB --r2 R2,BACKUP_BUCKET --port 8787",
     "deploy": "wrangler deploy",
-    "register": "node src/register.js",
-    "test": "jest"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "comfydeploy": "^2.0.0-beta.69",
     "discord-interactions": "^4.0.0",
     "discord.js": "^14.16.3",
+    "discordeno": "^20.0.0",
     "dotenv": "^16.4.7",
     "https-proxy-agent": "^7.0.6",
     "itty-router": "^5.0.9",
@@ -20,6 +23,8 @@
   },
   "devDependencies": {
     "jest": "^29.7.0",
+    "miniflare": "^3.20241218.0",
+    "ngrok": "^5.0.0-beta.2",
     "wrangler": "^3.96.0"
   },
   "engines": {

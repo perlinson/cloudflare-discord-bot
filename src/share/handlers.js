@@ -4,11 +4,20 @@ import { shareData } from './dataLoader.js';
 
 export async function handleShareCommands(interaction, env) {
     const { type, data, member, guild_id } = interaction;
-    const commandName = data.name.toLowerCase();
+    const subCommand = data.options[0];
+    const commandName = subCommand.name.toLowerCase();
+    const options = subCommand.options || [];
     const userId = member.user.id;
 
     try {
         switch (commandName) {
+            case 'file':
+                const file = options.find(opt => opt.name === 'file')?.value;
+                const description = options.find(opt => opt.name === 'description')?.value;
+                return await handleFileShare(interaction, file, description, env);
+            case 'text':
+                const content = options.find(opt => opt.name === 'content')?.value;
+                return await handleTextShare(interaction, content, env);
             case 'share':
                 return await handleShare(interaction);
             case 'update':
@@ -513,4 +522,12 @@ async function getGuildInfo(guildId) {
         banner: null,
         features: [],
     };
+}
+
+async function handleFileShare(interaction, file, description, env) {
+    // Implement file share logic here
+}
+
+async function handleTextShare(interaction, content, env) {
+    // Implement text share logic here
 }

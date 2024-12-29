@@ -7,6 +7,11 @@ import { StorageMonitoring } from './monitoring.js';
 
 export class StorageManager {
     constructor(env) {
+        console.log('Initializing storage with env:', {
+          KV: !!env.KV,
+          D1: !!env.D1,
+          R2: !!env.R2,
+        });
         this.env = env;
         this.kv = new KVStorage(env.KV);
         this.d1 = new D1Storage(env.D1);

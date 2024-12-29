@@ -7,6 +7,7 @@ import {
   InteractionType,
   InteractionResponseType,
   verifyKey,
+  InteractionResponseFlags,
 } from 'discord-interactions';
 
 // Import commands
@@ -20,14 +21,31 @@ import { PHONE_COMMANDS } from './phone/commands.js';
 import { SHARE_COMMANDS } from './share/commands.js';
 
 // Import handlers
-import { handleChatbotCommands as handleChatCommands } from './chatbot/handlers.js';
+import { handleChatCommands } from './chatbot/handlers.js';
 import { handleEconomyCommands } from './economy/handlers.js';
-import { handleImageAICommands as handleImageCommands } from './imageai/handlers.js';
-import { handleLevelsCommands as handleLevelCommands } from './levels/handlers.js';
+import { handleImageCommands } from './imageai/handlers.js';
+import { handleLevelCommands } from './levels/handlers.js';
 import { handleNetworkCommands } from './network/handlers.js';
 import { handleOnboardingCommands } from './onboarding/handlers.js';
 import { handlePhoneCommands } from './phone/handlers.js';
 import { handleShareCommands } from './share/handlers.js';
+import { imageService } from './imageai/service.js';
+
+class JsonResponse extends Response {
+  constructor(body, init) {
+    const jsonBody = JSON.stringify(body);
+    init = init || {};
+    init.headers = {
+      ...init.headers,
+      'content-type': 'application/json;charset=UTF-8',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block'
+    };
+    super(jsonBody, init);
+  }
+}
 
 // Create router
 const router = AutoRouter();
@@ -45,97 +63,202 @@ const ALL_COMMANDS = [
 ];
 
 // Discord request verification
-async function verifyDiscordRequest(request) {
+async function verifyDiscordRequest(request, env) {
   const signature = request.headers.get('x-signature-ed25519');
   const timestamp = request.headers.get('x-signature-timestamp');
   const body = await request.clone().text();
   
-  if (!verifyKey(body, signature, timestamp, process.env.DISCORD_PUBLIC_KEY)) {
-    return new Response('Invalid request signature', { status: 401 });
+  console.log('Signature:', signature);
+  console.log('Timestamp:', timestamp);
+  console.log('Request body:', body);
+  console.log('Public Key:', env.DISCORD_PUBLIC_KEY);
+
+  const isValidRequest = signature && 
+    timestamp && 
+    (await verifyKey(body, signature, timestamp, env.DISCORD_PUBLIC_KEY));
+    
+  console.log('Is Valid Request:', isValidRequest);
+    
+  if (!isValidRequest) {
+    console.error('Invalid Discord request signature');
+    return { isValid: false };
+  }
+
+  try {
+    const interaction = JSON.parse(body);
+    return { isValid: true, interaction };
+  } catch (error) {
+    console.error('Error parsing interaction body:', error);
+    return { isValid: false };
   }
 }
 
-// Handle interactions
-router.post('/interactions', async (request) => {
-  const { type, data } = await request.json();
+// Root route
+router.get('/', (request, env) => {
+  return new Response(`👋 ${env.DISCORD_APPLICATION_ID}`, {
+    headers: {
+      'content-type': 'text/plain;charset=UTF-8',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block'
+    }
+  });
+});
 
-  if (type === InteractionType.PING) {
-    return new Response(
-      JSON.stringify({ type: InteractionResponseType.PONG }),
-      { headers: { 'Content-Type': 'application/json' }}
-    );
+// Main Discord interaction route
+router.post('/interactions', async (request, env) => {
+  const { isValid, interaction } = await verifyDiscordRequest(request, env);
+  if (!isValid || !interaction) {
+    return new Response('Bad request signature.', { status: 401 });
   }
 
-  if (type === InteractionType.APPLICATION_COMMAND) {
-    const { name } = data;
-    let response;
+  console.log('Received interaction:', JSON.stringify(interaction, null, 2));
 
-    try {
-      switch(true) {
-        case name.startsWith('chat'):
-          response = await handleChatCommands(data);
-          break;
-        case name.startsWith('economy'):
-          response = await handleEconomyCommands(data);
-          break;
-        case name.startsWith('image'):
-          response = await handleImageCommands(data);
-          break;
-        case name.startsWith('level'):
-          response = await handleLevelCommands(data);
-          break;
-        case name.startsWith('network'):
-          response = await handleNetworkCommands(data);
-          break;
-        case name.startsWith('onboarding'):
-          response = await handleOnboardingCommands(data);
-          break;
-        case name.startsWith('phone'):
-          response = await handlePhoneCommands(data);
-          break;
-        case name.startsWith('share'):
-          response = await handleShareCommands(data);
-          break;
-        default:
-          return new Response('Command not found', { status: 404 });
-      }
+  // Handle different types of interactions
+  if (interaction.type === InteractionType.PING) {
+    return new JsonResponse({
+      type: InteractionResponseType.PONG,
+    });
+  }
 
-      return new Response(
-        JSON.stringify(response),
-        { headers: { 'Content-Type': 'application/json' }}
-      );
+  if (interaction.type === InteractionType.APPLICATION_COMMAND) {
+    // 获取命令名称和子命令
+    const { name, options } = interaction.data;
+    console.log('Command name:', name);
+    console.log('Options:', JSON.stringify(options, null, 2));
 
-    } catch (error) {
-      console.error('Error handling command:', error);
-      return new Response(
-        JSON.stringify({
+    switch (name.toLowerCase()) {
+      case 'image':
+        return handleImageCommands(interaction, env);
+      case 'level':
+        return handleLevelCommands(interaction, env);
+      case 'onboarding':
+        return handleOnboardingCommands(interaction, env);
+      case 'phone':
+        return handlePhoneCommands(interaction, env);
+      case 'share':
+        return handleShareCommands(interaction, env);
+      default:
+        return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: 'An error occurred while processing your command.',
-            flags: 64, // EPHEMERAL
+            content: 'Unknown command',
           },
-        }),
-        { headers: { 'Content-Type': 'application/json' }}
-      );
+        });
     }
   }
 
-  return new Response('Unknown interaction type', { status: 400 });
+  return new JsonResponse({ error: 'Unknown Type' }, { status: 400 });
+});
+
+// 添加一个新的路由来处理图像生成进度更新
+router.post('/api/image-progress', async (request, env) => {
+    try {
+        const { runId, channelId, messageId } = await request.json();
+        const elapsedTime = imageService.getElapsedTime(runId);
+        
+        if (!elapsedTime) {
+            return new Response('Task not found', { status: 404 });
+        }
+
+        // 更新 Discord 消息
+        const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bot ${env.DISCORD_TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                content: `⏳ Generating image... (${elapsedTime}s)`,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to update Discord message: ${response.status}`);
+        }
+
+        return new Response('OK');
+    } catch (error) {
+        console.error('Error updating progress:', error);
+        return new Response(error.message, { status: 500 });
+    }
+});
+
+// ComfyDeploy webhook 处理
+router.post('/api/comfy-webhook', async (request, env) => {
+  console.log('Received webhook request at /api/comfy-webhook');
+  try {
+    // 确保 imageService 已初始化
+    if (!imageService.cd) {
+      console.log('Initializing imageService for webhook');
+      imageService.initialize(env);
+    }
+
+    // 检查请求对象
+    if (!request || !request.url) {
+      console.error('Invalid request object:', request);
+      throw new Error('Invalid request: missing URL');
+    }
+
+    // 获取请求的原始 URL
+    const requestUrl = request.url;
+    console.log('Request URL:', requestUrl);
+
+    // 构建完整的 webhook URL
+    const webhookUrl = 'https://globalcord.xingxuantechnology.cn/api/comfy-webhook';
+    console.log('Webhook URL:', webhookUrl);
+
+    // 获取请求头和请求体
+    const headers = {};
+    request.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+    console.log('Request headers:', headers);
+
+    const bodyText = await request.text();
+    console.log('Request body:', bodyText);
+
+    // 创建新的请求对象
+    const newRequest = new Request(webhookUrl, {
+      method: 'POST',
+      headers: new Headers(headers),
+      body: bodyText
+    });
+
+    console.log('Created new request:', {
+      url: newRequest.url,
+      method: newRequest.method,
+      hasHeaders: !!newRequest.headers,
+      hasBody: !!newRequest.body
+    });
+
+    // 处理 webhook
+    return await imageService.handleWebhook(newRequest);
+  } catch (error) {
+    console.error('Error handling webhook:', error);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      stack: error.stack, 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 });
 
 // Health check
 router.get('/health', () => new Response('OK'));
 
-// Export worker
-export default {
-  async fetch(request, env, ctx) {
-    request.env = env;
-    
-    if (request.method === 'POST') {
-      const verificationResponse = verifyDiscordRequest(request);
-      if (verificationResponse) return verificationResponse;
-    }
+// Favicon route
+router.get('/favicon.ico', () => new Response(null, { status: 204 }));
 
-    return router.handle(request);
-  },
+// Catch-all route
+router.all('*', () => new Response('Not Found', { status: 404 }));
+
+const server = {
+  verifyDiscordRequest,
+  fetch: router.fetch,
 };
+
+export default server;

@@ -1,32 +1,35 @@
 import { InteractionResponseType, InteractionResponseFlags } from 'discord-interactions';
-import { NETWORK_CONFIG } from './config.js';
 import { networkData } from './dataLoader.js';
+import { NETWORK_CONFIG } from './config.js';
+import { initialize } from '../utils/storage.js';
 
 export async function handleNetworkCommands(interaction, env) {
     const { type, data, member, guild_id } = interaction;
-    const commandName = data.name.toLowerCase();
+    const subCommand = data.options[0];
+    const commandName = subCommand.name.toLowerCase();
+    const options = subCommand.options || [];
     const userId = member.user.id;
 
-    // Initialize storage
-    networkData.initialize(env);
+    // Initialize storage only once
+    initialize('network', env, (env) => {
+        networkData.initialize(env);
+    });
 
     try {
         switch (commandName) {
             case 'connect':
-                return await handleConnect(interaction);
+                const code = options.find(opt => opt.name === 'code')?.value;
+                return await handleConnect(interaction, code, env);
             case 'disconnect':
-                return await handleDisconnect(interaction);
-            case 'channels':
-                return await handleChannels(interaction);
-            case 'settings':
-                return await handleSettings(interaction);
-            case 'stats':
-                return await handleStats(interaction);
+                const server = options.find(opt => opt.name === 'server')?.value;
+                return await handleDisconnect(interaction, server, env);
+            case 'list':
+                return await handleList(interaction, env);
             default:
                 return {
                     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                     data: {
-                        content: 'Unknown command',
+                        content: 'Unknown network command',
                         flags: InteractionResponseFlags.EPHEMERAL,
                     },
                 };
@@ -43,7 +46,7 @@ export async function handleNetworkCommands(interaction, env) {
     }
 }
 
-async function handleConnect(interaction) {
+async function handleConnect(interaction, code, env) {
     const { guild_id, data } = interaction;
     const targetId = data.options.find(opt => opt.name === 'server')?.value;
 
@@ -79,7 +82,7 @@ async function handleConnect(interaction) {
     }
 }
 
-async function handleDisconnect(interaction) {
+async function handleDisconnect(interaction, server, env) {
     const { guild_id, data } = interaction;
     const targetId = data.options.find(opt => opt.name === 'server')?.value;
 
@@ -90,6 +93,48 @@ async function handleDisconnect(interaction) {
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
                 content: '✅ Successfully disconnected from the server.',
+                flags: InteractionResponseFlags.EPHEMERAL,
+            },
+        };
+    } catch (error) {
+        return {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                content: `❌ Error: ${error.message}`,
+                flags: InteractionResponseFlags.EPHEMERAL,
+            },
+        };
+    }
+}
+
+async function handleList(interaction, env) {
+    const { guild_id, data } = interaction;
+
+    try {
+        const channels = await networkData.getNetworkChannels(guild_id);
+
+        if (channels.length === 0) {
+            return {
+                type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+                data: {
+                    content: 'No network channels configured.',
+                    flags: InteractionResponseFlags.EPHEMERAL,
+                },
+            };
+        }
+
+        const channelList = channels.map(
+            channel => `• <#${channel.id}> (${channel.name})`
+        ).join('\n');
+
+        return {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                embeds: [{
+                    title: '📝 Network Channels',
+                    description: channelList,
+                    color: parseInt(NETWORK_CONFIG.ui.colors.info.replace('#', ''), 16),
+                }],
                 flags: InteractionResponseFlags.EPHEMERAL,
             },
         };

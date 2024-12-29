@@ -1,44 +1,58 @@
 import { InteractionResponseType, InteractionResponseFlags } from 'discord-interactions';
 import { levelsDataLoader } from './dataLoader.js';
 import { LEVELS_CONFIG } from './config.js';
+import { initialize } from '../utils/storage.js';
 
-export async function handleLevelsCommands(interaction, env) {
-    const { type, data, member, channel_id, guild_id } = interaction;
-    const commandName = data.name.toLowerCase();
+export async function handleLevelCommands(interaction, env) {
+    const { type, data, member, guild_id } = interaction;
+    const subCommand = data.options[0];
+    const commandName = subCommand.name.toLowerCase();
+    const options = subCommand.options || [];
+    const userId = member.user.id;
 
-    switch (commandName) {
-        case 'rank':
-            return handleRankCommand(interaction, env);
-        case 'leaderboard':
-            return handleLeaderboardCommand(interaction, env);
-        case 'levelconfig':
-            return handleLevelConfigCommand(interaction, env);
-        case 'xpchannel':
-            return handleXPChannelCommand(interaction, env);
-        case 'xprole':
-            return handleXPRoleCommand(interaction, env);
-        case 'givexp':
-            return handleGiveXPCommand(interaction, env);
-        default:
-            return {
-                type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-                data: {
-                    content: 'Unknown level command',
-                    flags: InteractionResponseFlags.EPHEMERAL,
-                },
-            };
+    // Initialize storage only once
+    initialize('levels', env, (env) => {
+        levelsDataLoader.initialize(env);
+    });
+
+    try {
+        switch (commandName) {
+            case 'rank':
+                const targetUser = options.find(opt => opt.name === 'user')?.value || userId;
+                return await handleRank(interaction, targetUser, env);
+            case 'leaderboard':
+                return await handleLeaderboard(interaction, env);
+            case 'rewards':
+                return await handleRewards(interaction, env);
+            default:
+                return {
+                    type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+                    data: {
+                        content: 'Unknown level command',
+                        flags: InteractionResponseFlags.EPHEMERAL,
+                    },
+                };
+        }
+    } catch (error) {
+        console.error('Error handling level command:', error);
+        return {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                content: `Error: ${error.message}`,
+                flags: InteractionResponseFlags.EPHEMERAL,
+            },
+        };
     }
 }
 
-async function handleRankCommand(interaction, env) {
+async function handleRank(interaction, targetUser, env) {
     const { data, member, guild_id } = interaction;
-    const targetUser = data.options?.[0]?.value || member.user.id;
-    const userData = levelsDataLoader.getUserXP(targetUser);
-    const level = levelsDataLoader.calculateLevel(userData.xp);
-    const rank = levelsDataLoader.getRankTitle(level);
-    const nextLevelXP = levelsDataLoader.calculateXPForLevel(level + 1);
-    const progress = ((userData.xp - levelsDataLoader.calculateXPForLevel(level)) / 
-                     (nextLevelXP - levelsDataLoader.calculateXPForLevel(level)) * 100).toFixed(1);
+    const userData = levelsData.getUserXP(targetUser);
+    const level = levelsData.calculateLevel(userData.xp);
+    const rank = levelsData.getRankTitle(level);
+    const nextLevelXP = levelsData.calculateXPForLevel(level + 1);
+    const progress = ((userData.xp - levelsData.calculateXPForLevel(level)) / 
+                     (nextLevelXP - levelsData.calculateXPForLevel(level)) * 100).toFixed(1);
 
     return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -68,11 +82,11 @@ async function handleRankCommand(interaction, env) {
     };
 }
 
-async function handleLeaderboardCommand(interaction, env) {
+async function handleLeaderboard(interaction, env) {
     const { data, guild_id } = interaction;
     const page = (data.options?.[0]?.value || 1) - 1;
     const perPage = 10;
-    const leaderboard = levelsDataLoader.getLeaderboard(perPage * (page + 1))
+    const leaderboard = levelsData.getLeaderboard(perPage * (page + 1))
         .slice(page * perPage);
 
     const embed = {
@@ -86,6 +100,17 @@ async function handleLeaderboardCommand(interaction, env) {
     return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: { embeds: [embed] },
+    };
+}
+
+async function handleRewards(interaction, env) {
+    // TO DO: implement rewards handling
+    return {
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            content: 'Rewards are not implemented yet.',
+            flags: InteractionResponseFlags.EPHEMERAL,
+        },
     };
 }
 
@@ -103,7 +128,7 @@ async function handleLevelConfigCommand(interaction, env) {
 
     const setting = data.options[0].value;
     const value = data.options[1].value;
-    const settings = levelsDataLoader.getGuildSettings(guild_id);
+    const settings = levelsData.getGuildSettings(guild_id);
 
     switch (setting) {
         case 'xp_enabled':
@@ -117,7 +142,7 @@ async function handleLevelConfigCommand(interaction, env) {
             break;
     }
 
-    levelsDataLoader.updateGuildSettings(guild_id, settings);
+    levelsData.updateGuildSettings(guild_id, settings);
 
     return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -142,7 +167,7 @@ async function handleXPChannelCommand(interaction, env) {
 
     const action = data.options[0].value;
     const channelId = data.options[1].value;
-    const settings = levelsDataLoader.getGuildSettings(guild_id);
+    const settings = levelsData.getGuildSettings(guild_id);
 
     if (action === 'add') {
         if (!settings.xpChannels.includes(channelId)) {
@@ -152,7 +177,7 @@ async function handleXPChannelCommand(interaction, env) {
         settings.xpChannels = settings.xpChannels.filter(id => id !== channelId);
     }
 
-    levelsDataLoader.updateGuildSettings(guild_id, settings);
+    levelsData.updateGuildSettings(guild_id, settings);
 
     return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -177,7 +202,7 @@ async function handleXPRoleCommand(interaction, env) {
 
     const action = data.options[0].value;
     const roleId = data.options[1].value;
-    const settings = levelsDataLoader.getGuildSettings(guild_id);
+    const settings = levelsData.getGuildSettings(guild_id);
 
     if (action === 'add') {
         if (!settings.xpRoles.includes(roleId)) {
@@ -187,7 +212,7 @@ async function handleXPRoleCommand(interaction, env) {
         settings.xpRoles = settings.xpRoles.filter(id => id !== roleId);
     }
 
-    levelsDataLoader.updateGuildSettings(guild_id, settings);
+    levelsData.updateGuildSettings(guild_id, settings);
 
     return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -223,13 +248,13 @@ async function handleGiveXPCommand(interaction, env) {
         };
     }
 
-    const oldData = levelsDataLoader.getUserXP(targetUser);
-    const oldLevel = levelsDataLoader.calculateLevel(oldData.xp);
+    const oldData = levelsData.getUserXP(targetUser);
+    const oldLevel = levelsData.calculateLevel(oldData.xp);
     
-    levelsDataLoader.addXP(targetUser, amount);
+    levelsData.addXP(targetUser, amount);
     
-    const newData = levelsDataLoader.getUserXP(targetUser);
-    const newLevel = levelsDataLoader.calculateLevel(newData.xp);
+    const newData = levelsData.getUserXP(targetUser);
+    const newLevel = levelsData.calculateLevel(newData.xp);
 
     let response = `✅ Added ${amount} XP to <@${targetUser}>.`;
     if (newLevel > oldLevel) {
@@ -252,7 +277,7 @@ export async function handleMessage(message, env) {
     if (author.bot) return;
 
     // Get guild settings
-    const settings = levelsDataLoader.getGuildSettings(guild_id);
+    const settings = levelsData.getGuildSettings(guild_id);
     
     // Check if XP is enabled
     if (!settings.xpEnabled) return;
@@ -261,7 +286,7 @@ export async function handleMessage(message, env) {
     if (settings.xpChannels.length > 0 && !settings.xpChannels.includes(channel_id)) return;
     
     // Check cooldown
-    const userData = levelsDataLoader.getUserXP(author.id);
+    const userData = levelsData.getUserXP(author.id);
     const now = Date.now();
     if (userData.lastXpGain && (now - userData.lastXpGain) < (LEVELS_CONFIG.xpCooldown * 1000)) return;
     
@@ -272,21 +297,21 @@ export async function handleMessage(message, env) {
     );
     
     // Apply XP multiplier
-    const multiplier = levelsDataLoader.getXPMultiplier(author.id, guild_id);
+    const multiplier = levelsData.getXPMultiplier(author.id, guild_id);
     const totalXP = Math.floor(xpAmount * multiplier);
     
     // Get old level
-    const oldLevel = levelsDataLoader.calculateLevel(userData.xp);
+    const oldLevel = levelsData.calculateLevel(userData.xp);
     
     // Add XP
-    const newData = levelsDataLoader.addXP(author.id, totalXP);
+    const newData = levelsData.addXP(author.id, totalXP);
     
     // Check for level up
-    const newLevel = levelsDataLoader.calculateLevel(newData.xp);
+    const newLevel = levelsData.calculateLevel(newData.xp);
     if (newLevel > oldLevel) {
-        const reward = levelsDataLoader.calculateReward(newLevel);
-        const oldRank = levelsDataLoader.getRankTitle(oldLevel);
-        const newRank = levelsDataLoader.getRankTitle(newLevel);
+        const reward = levelsData.calculateReward(newLevel);
+        const oldRank = levelsData.getRankTitle(oldLevel);
+        const newRank = levelsData.getRankTitle(newLevel);
         
         // Create level up message
         const levelUpMessage = LEVELS_CONFIG.levelUpMessages[

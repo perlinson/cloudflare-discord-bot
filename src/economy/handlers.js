@@ -1,34 +1,51 @@
 import { InteractionResponseType, InteractionResponseFlags } from 'discord-interactions';
-import { ECONOMY_CONFIG } from './config.js';
 import { economyData } from './dataLoader.js';
+import { ECONOMY_CONFIG } from './config.js';
+import { initialize } from '../utils/storage.js';
 
 export async function handleEconomyCommands(interaction, env) {
     const { type, data, member, guild_id } = interaction;
-    const commandName = data.name.toLowerCase();
+    const subCommand = data.options[0];
+    const commandName = subCommand.name.toLowerCase();
+    const options = subCommand.options || [];
     const userId = member.user.id;
 
-    // Initialize storage
-    economyData.initialize(env);
+    // Initialize storage only once
+    initialize('economy', env, (env) => {
+        economyData.initialize(env);
+    });
 
     try {
         switch (commandName) {
             case 'balance':
-                return await handleBalance(interaction);
+                const targetUser = options.find(opt => opt.name === 'user')?.value || userId;
+                return await handleBalance(interaction, targetUser);
             case 'transfer':
-                return await handleTransfer(interaction);
+                return await handleTransfer(interaction, options);
             case 'shop':
                 return await handleShop(interaction);
             case 'inventory':
-                return await handleInventory(interaction);
+                const inventoryUser = options.find(opt => opt.name === 'user')?.value || userId;
+                return await handleInventory(interaction, inventoryUser);
             case 'daily':
                 return await handleDaily(interaction);
-            case 'stats':
-                return await handleStats(interaction);
+            case 'weekly':
+                return await handleWeekly(interaction);
+            case 'work':
+                return await handleWork(interaction);
+            case 'mine':
+                return await handleMine(interaction);
+            case 'fish':
+                return await handleFish(interaction);
+            case 'business':
+                return await handleBusiness(interaction);
+            case 'leaderboard':
+                return await handleLeaderboard(interaction);
             default:
                 return {
                     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                     data: {
-                        content: 'Unknown command',
+                        content: 'Unknown economy command',
                         flags: InteractionResponseFlags.EPHEMERAL,
                     },
                 };
@@ -45,18 +62,18 @@ export async function handleEconomyCommands(interaction, env) {
     }
 }
 
-async function handleBalance(interaction) {
+async function handleBalance(interaction, targetUser) {
     const { guild_id, member } = interaction;
     const userId = member.user.id;
 
-    const balance = await economyData.getUserBalance(userId, guild_id);
+    const balance = await economyData.getUserBalance(targetUser, guild_id);
 
     return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
             embeds: [{
                 title: '💰 Balance',
-                description: `Your current balance: ${balance} coins`,
+                description: `The balance of <@${targetUser}> is: ${balance} coins`,
                 color: parseInt(ECONOMY_CONFIG.ui.colors.info.replace('#', ''), 16),
             }],
             flags: InteractionResponseFlags.EPHEMERAL,
@@ -64,11 +81,11 @@ async function handleBalance(interaction) {
     };
 }
 
-async function handleTransfer(interaction) {
+async function handleTransfer(interaction, options) {
     const { guild_id, data, member } = interaction;
     const userId = member.user.id;
-    const targetId = data.options.find(opt => opt.name === 'user')?.value;
-    const amount = data.options.find(opt => opt.name === 'amount')?.value;
+    const targetId = options.find(opt => opt.name === 'user')?.value;
+    const amount = options.find(opt => opt.name === 'amount')?.value;
 
     if (economyData.isRateLimited(userId, 'transfer')) {
         return {
@@ -195,17 +212,17 @@ async function handleShop(interaction) {
     }
 }
 
-async function handleInventory(interaction) {
+async function handleInventory(interaction, targetUser) {
     const { guild_id, member } = interaction;
     const userId = member.user.id;
 
-    const items = await economyData.getUserItems(userId, guild_id);
+    const items = await economyData.getUserItems(targetUser, guild_id);
 
     if (items.length === 0) {
         return {
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
-                content: 'Your inventory is empty.',
+                content: `The inventory of <@${targetUser}> is empty.`,
                 flags: InteractionResponseFlags.EPHEMERAL,
             },
         };
