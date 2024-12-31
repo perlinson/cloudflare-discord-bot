@@ -1,17 +1,21 @@
 {
+  "type": "module",
   "name": "cloudflare-discord-bot",
   "version": "1.0.0",
   "description": "",
-  "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "updateCommands": "node src/register.js",
+    "updateCommands": "node src/scripts/register.js",
     "dev": "wrangler dev src/server.js --local",
     "dev--": "miniflare src/server.js --kv KV --d1 DB --r2 R2,BACKUP_BUCKET --port 8787",
     "deploy": "wrangler deploy",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
   },
   "dependencies": {
+    "@prisma/adapter-d1": "^6.1.0",
+    "@prisma/client": "^6.1.0",
     "comfydeploy": "^2.0.0-beta.69",
     "discord-interactions": "^4.0.0",
     "discord.js": "^14.16.3",
@@ -22,9 +26,11 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241224.0",
+    "@jest/globals": "^29.7.0",
     "jest": "^29.7.0",
     "miniflare": "^3.20241218.0",
-    "ngrok": "^5.0.0-beta.2",
+    "prisma": "^6.1.0",
     "wrangler": "^3.96.0"
   },
   "engines": {

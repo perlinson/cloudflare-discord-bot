@@ -7,28 +7,48 @@ import { StorageMonitoring } from './monitoring.js';
 
 export class StorageManager {
     constructor(env) {
-        console.log('Initializing storage with env:', {
-          KV: !!env.KV,
-          D1: !!env.D1,
-          R2: !!env.R2,
-        });
+        console.log('[StorageManager] Starting initialization');
         this.env = env;
-        this.kv = new KVStorage(env.KV);
-        this.d1 = new D1Storage(env.D1);
-        this.r2 = new R2Storage(env.R2);
-        
-        // Initialize components
-        this.migration = new StorageMigration(env);
-        this.backup = new StorageBackup(env);
-        this.monitoring = new StorageMonitoring(env);
-        
-        // Setup logging
-        this.logger = {
-            info: (message, ...args) => this.log('info', message, ...args),
-            error: (message, ...args) => this.log('error', message, ...args),
-            warn: (message, ...args) => this.log('warn', message, ...args),
-            debug: (message, ...args) => this.log('debug', message, ...args)
-        };
+    }
+
+    async initialize() {
+        try {
+            console.log('[StorageManager] Initializing storage components');
+            
+            // Initialize storage backends
+            console.log('[StorageManager] Initializing KV storage');
+            this.kv = new KVStorage(this.env.KV);
+            
+            console.log('[StorageManager] Initializing D1 storage');
+            this.d1 = new D1Storage(this.env.DB);
+            await this.d1.initializeTables();
+            
+            console.log('[StorageManager] Initializing R2 storage');
+            this.r2 = new R2Storage(this.env.R2);
+            
+            // Initialize components
+            console.log('[StorageManager] Initializing migration component');
+            this.migration = new StorageMigration(this.env);
+            
+            console.log('[StorageManager] Initializing backup component');
+            this.backup = new StorageBackup(this.env);
+            
+            console.log('[StorageManager] Initializing monitoring component');
+            this.monitoring = new StorageMonitoring(this.env);
+            
+            // Setup logging
+            this.logger = {
+                info: (message, ...args) => this.log('info', message, ...args),
+                error: (message, ...args) => this.log('error', message, ...args),
+                warn: (message, ...args) => this.log('warn', message, ...args),
+                debug: (message, ...args) => this.log('debug', message, ...args)
+            };
+
+            console.log('[StorageManager] Initialization completed successfully');
+        } catch (error) {
+            console.error('[StorageManager] Error during initialization:', error);
+            throw error;
+        }
     }
 
     async log(level, message, ...args) {
@@ -450,6 +470,13 @@ export class StorageManager {
     }
 }
 
-export function createStorageManager(env) {
-    return new StorageManager(env);
+let storageManager = null;
+
+export async function createStorageManager(env) {
+    if (!storageManager) {
+        console.log('[StorageManager] Creating new instance');
+        storageManager = new StorageManager(env);
+        await storageManager.initialize();
+    }
+    return storageManager;
 }

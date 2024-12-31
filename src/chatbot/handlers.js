@@ -10,26 +10,39 @@ export async function handleChatCommands(interaction, env) {
     const options = subCommand.options || [];
     const userId = member.user.id;
 
+    // 首先发送一个延迟响应
+    const response = {
+        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            flags: InteractionResponseFlags.EPHEMERAL
+        }
+    };
+
     // Initialize storage only once
     initialize('chatbot', env, (env) => {
         chatbotData.initialize(env);
     });
 
     try {
+        let result;
         switch (commandName) {
             case 'toggle':
-                return await handleToggleChat(interaction, env);
+                result = await handleToggleChat(interaction, env);
+                break;
             case 'config':
                 const setting = options.find(opt => opt.name === 'setting')?.value;
                 const value = options.find(opt => opt.name === 'value')?.value;
-                return await handleConfig(interaction, setting, value, env);
+                result = await handleConfig(interaction, setting, value, env);
+                break;
             case 'clear':
-                return await handleClearChat(interaction, env);
+                result = await handleClearChat(interaction, env);
+                break;
             case 'character':
                 const character = options.find(opt => opt.name === 'character')?.value;
-                return await handleCharacter(interaction, character, env);
+                result = await handleCharacter(interaction, character, env);
+                break;
             default:
-                return {
+                result = {
                     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                     data: {
                         content: 'Unknown chat command',
@@ -37,15 +50,39 @@ export async function handleChatCommands(interaction, env) {
                     },
                 };
         }
+
+        // 使用 webhook 发送最终结果
+        const webhookUrl = `https://discord.com/api/v10/webhooks/${env.DISCORD_APPLICATION_ID}/${interaction.token}/messages/@original`;
+        const webhookResponse = await fetch(webhookUrl, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(result.data),
+        });
+
+        if (!webhookResponse.ok) {
+            throw new Error(`Failed to send webhook response: ${webhookResponse.status}`);
+        }
+
+        return response;
     } catch (error) {
         console.error('Error handling chat command:', error);
-        return {
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
+        
+        // 如果出错，更新原始消息
+        const webhookUrl = `https://discord.com/api/v10/webhooks/${env.DISCORD_APPLICATION_ID}/${interaction.token}/messages/@original`;
+        await fetch(webhookUrl, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
                 content: `Error: ${error.message}`,
                 flags: InteractionResponseFlags.EPHEMERAL,
-            },
-        };
+            }),
+        });
+
+        return response;
     }
 }
 

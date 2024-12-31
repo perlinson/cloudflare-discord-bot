@@ -1,0 +1,113 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  engineType      = "library"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 用户模型
+model User {
+  id            String    @id @default(cuid())
+  discordId     String    @unique
+  username      String?
+  discriminator String?
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // 经济系统
+  balance       Int       @default(0)
+  bank          Int       @default(0)
+  lastDaily     DateTime?
+  lastWeekly    DateTime?
+  inventory     Item[]
+
+  // 等级系统
+  xp            Int       @default(0)
+  level         Int       @default(0)
+  messages      Int       @default(0)
+  lastMessage   DateTime?
+
+  // 聊天机器人设置
+  chatSettings  ChatSettings?
+  chatHistory   ChatMessage[]
+
+  // 关联
+  tickets       Ticket[]
+  feedback      Feedback[]
+}
+
+// 物品模型
+model Item {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  price       Int
+  type        String    // 物品类型：role, badge, item 等
+  data        String?   // 额外数据（JSON）
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // 关联
+  users       User[]    // 拥有此物品的用户
+}
+
+// 聊天设置模型
+model ChatSettings {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  language    String    @default("en")
+  personality String    @default("friendly")
+  memory      Boolean   @default(true)
+  reactions   Boolean   @default(true)
+  character   String    @default("assistant")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // 关联
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+// 聊天历史模型
+model ChatMessage {
+  id          String    @id @default(cuid())
+  userId      String
+  role        String    // user 或 assistant
+  content     String
+  createdAt   DateTime  @default(now())
+
+  // 关联
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+// 工单模型
+model Ticket {
+  id          String    @id @default(cuid())
+  userId      String
+  channelId   String    @unique
+  subject     String
+  status      String    @default("open")
+  closedAt    DateTime?
+  closedBy    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // 关联
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+// 反馈模型
+model Feedback {
+  id          String    @id @default(cuid())
+  userId      String
+  type        String
+  content     String
+  createdAt   DateTime  @default(now())
+
+  // 关联
+  user        User      @relation(fields: [userId], references: [id])
+}
