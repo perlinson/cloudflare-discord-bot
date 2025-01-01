@@ -10,6 +10,7 @@ import {
 } from 'discord-interactions';
 import { DiscordClient } from './api/discord/client/index.js';
 import { DISCORD_API_URL } from './api/discord/client/constants.js';
+import { GuildMemberEvents } from './api/discord/events/guildMember.js';
 
 class JsonResponse extends Response {
   constructor(body, init) {
@@ -105,10 +106,82 @@ router.post('/webhooks/:applicationId/:token', async (request, env) => {
   }
 });
 
+// 添加一个测试路由
+router.post('/webhook-test', async (request, env, ctx) => {
+  console.log('Headers:', Object.fromEntries(request.headers.entries()));
+  const body = await request.json().catch(() => ({}));
+  console.log('Body:', body);
+  
+  return new JsonResponse({
+    message: 'Webhook test received',
+    headers: Object.fromEntries(request.headers.entries()),
+    body: body
+  });
+});
+
+router.post ('/', async (request, env, ctx) => {
+  // 检查是否是 Discord 事件
+  const eventType = request.headers.get('X-Discord-Event-Type');
+  if (eventType) {
+    console.log('Received Discord event:', eventType);
+    
+    try {
+      const eventData = await request.json();
+      console.log('Event data:', eventData);
+
+      const discordClient = new DiscordClient(env.DISCORD_TOKEN, {}, env);
+      const guildMemberEvents = new GuildMemberEvents(discordClient);
+
+      switch (eventType) {
+        case 'GUILD_MEMBER_ADD':
+          console.log('Member added:', eventData);
+          await guildMemberEvents.handleMemberAdd(eventData);
+          break;
+        case 'GUILD_MEMBER_REMOVE':
+          console.log('Member removed:', eventData);
+          await guildMemberEvents.handleMemberRemove(eventData);
+          break;
+        default:
+          console.log('Unhandled event type:', eventType);
+      }
+
+      return new JsonResponse({ success: true });
+    } catch (error) {
+      console.error('Error handling Discord event:', error);
+      return new JsonResponse({ error: 'Internal server error' }, { status: 500 });
+    }
+  }
+
+  // 处理常规的 Discord 交互
+  const { isValid, interaction } = await verifyDiscordRequest(request, env);
+  if (!isValid || !interaction) {
+    return new Response('Bad request signature.', { status: 401 });
+  }
+
+  if (interaction.type === InteractionType.PING) {
+    return new JsonResponse({
+      type: InteractionResponseType.PONG,
+    });
+  }
+
+  // 处理其他交互
+  try {
+    const discordClient = new DiscordClient(env.DISCORD_TOKEN, {}, env);
+    const response = await discordClient.handleInteraction(interaction);
+    return new JsonResponse(response);
+  } catch (error) {
+    console.error('Error handling interaction:', error);
+    return new JsonResponse(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+});
+
 // Main Discord interaction route
 // Main Discord interaction route
 router.post('/interactions', async (request, env, ctx) => {
-  const discordClient = new DiscordClient(env.DISCORD_TOKEN, {}, env);
+  // console.log('Received interaction request at /interactions', request);
   const { isValid, interaction } = await verifyDiscordRequest(request, env);
   if (!isValid || !interaction) {
     return new Response('Bad request signature.', { status: 401 });
@@ -120,15 +193,37 @@ router.post('/interactions', async (request, env, ctx) => {
       type: InteractionResponseType.PONG,
     });
   }
+
+  const discordClient = new DiscordClient(env.DISCORD_TOKEN, {}, env);
   
-  try {
-    const response = await discordClient.handleInteraction(interaction);
-    
-    // 如果有长时间运行的任务，使用 ctx.waitUntil
-    if (response.backgroundTask) {
-      ctx.waitUntil(response.backgroundTask);
-      delete response.backgroundTask;
+  // 处理 Discord 事件
+  if (request.headers.get('X-Discord-Event-Type')) {
+    const eventType = request.headers.get('X-Discord-Event-Type');
+    const eventData = await request.json();
+    const guildMemberEvents = new GuildMemberEvents(discordClient);
+    switch (eventType) {
+      case 'GUILD_MEMBER_ADD':
+        console.log('GUILD_MEMBER_ADD', eventData);
+        await guildMemberEvents.handleMemberAdd(eventData);
+        break;
+      case 'GUILD_MEMBER_REMOVE':
+        console.log('GUILD_MEMBER_REMOVE', eventData);
+        await guildMemberEvents.handleMemberRemove(eventData);
+        break;
     }
+
+    return new Response('OK', { status: 200 });
+  }
+
+
+  try {
+    const response = await discordClient.handleInteraction(interaction,env);
+    
+    // // 如果有长时间运行的任务，使用 ctx.waitUntil
+    // if (response.backgroundTask) {
+    //   ctx.waitUntil(response.backgroundTask);
+    //   delete response.backgroundTask;
+    // }
     
     return new JsonResponse(response);
   } catch (error) {
@@ -140,28 +235,28 @@ router.post('/interactions', async (request, env, ctx) => {
 // Image progress update route
 router.post('/api/image-progress', async (request, env) => {
   try {
-    // const { runId, channelId, messageId } = await request.json();
-    // const elapsedTime = imageService.getElapsedTime(runId);
+    const { runId, channelId, messageId } = await request.json();
+    const elapsedTime = imageService.getElapsedTime(runId);
     
-    // if (!elapsedTime) {
-    //   return new Response('Task not found', { status: 404 });
-    // }
+    if (!elapsedTime) {
+      return new Response('Task not found', { status: 404 });
+    }
 
-    // // Update Discord message
-    // const response = await fetch(`${DISCORD_API_URL}/v10/channels/${channelId}/messages/${messageId}`, {
-    //   method: 'PATCH',
-    //   headers: {
-    //     'Authorization': `Bot ${env.DISCORD_TOKEN}`,
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: JSON.stringify({
-    //     content: `⏳ Generating image... (${elapsedTime}s)`,
-    //   }),
-    // });
+    // Update Discord message
+    const response = await fetch(`${DISCORD_API_URL}/v10/channels/${channelId}/messages/${messageId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bot ${env.DISCORD_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: `⏳ Generating image... (${elapsedTime}s)`,
+      }),
+    });
 
-    // if (!response.ok) {
-    //   throw new Error(`Failed to update Discord message: ${response.status}`);
-    // }
+    if (!response.ok) {
+      throw new Error(`Failed to update Discord message: ${response.status}`);
+    }
 
     return new Response('OK');
   } catch (error) {

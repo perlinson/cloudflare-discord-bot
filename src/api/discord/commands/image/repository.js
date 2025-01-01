@@ -1,7 +1,11 @@
+import { PrismaClient } from '@prisma/client'
+  import { PrismaD1 } from '@prisma/adapter-d1'
 export class ImageRepository {
   constructor(env) {
     this.env = env;
     this.kv = env.KV;
+    const adapter = new PrismaD1(env.MY_DATABASE)
+    this.prisma = new PrismaClient({ adapter })
   }
 
   async saveImageData(userId, imageData) {

@@ -1,6 +1,6 @@
 name = "globalcord"
-main = "./src/worker.js"
-compatibility_date = "2023-12-28"
+main = "./src/server.js"
+compatibility_date = "2024-12-18"
 compatibility_flags = ["nodejs_compat"]
 
 [observability]
@@ -15,6 +15,7 @@ preview_id = "8e32c4000e18472bb454c60ebfca33db"
 # D1 Database
 [[d1_databases]]
 binding = "DB"
+migrations_dir = "migrations"
 database_name = "globalcord-db"
 database_id = "56b6a46b-f072-468d-839b-371961e035b7"
 
@@ -41,6 +42,9 @@ local_protocol = "http"
 
 [vars]
 ENVIRONMENT = "production"
+
+
+
 
 # [secrets]
 # DISCORD_TOKEN

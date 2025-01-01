@@ -14,6 +14,7 @@ export class ImageGenerationService {
     constructor() {
         this.cd = null;
         this.env = null;
+        this.webhookUrl = null;
     }
 
     initialize(env) {
@@ -22,10 +23,10 @@ export class ImageGenerationService {
         }
 
         this.env = env;
-        
+        this.webhookUrl = `${env.APP_ID}/comfy-webhook`;
         const cdConfig = {
             bearer: env.COMFY_DEPLOY_API_KEY,
-            baseUrl: 'https://globalcord.xingxuantechnology.cn',
+            baseUrl: env.APP_ID,
             validateWebhook: async (info) => {
                 return true;
             }
@@ -43,12 +44,10 @@ export class ImageGenerationService {
             if (!this.env.APP_ID) {
                 throw new Error('APP_ID environment variable is not set');
             }
-
-            const webhookUrl = 'https://globalcord.xingxuantechnology.cn/api/comfy-webhook';
             
             const result = await this.cd.run.deployment.queue({
                 deploymentId: "857e43fb-a27d-4599-a7b6-e7ea3f2009eb",
-                webhook: webhookUrl,
+                webhook: this.webhookUrl,
                 webhookIntermediateStatus: true,
                 inputs: {
                     "prompt": params.prompt,
@@ -116,7 +115,7 @@ export class ImageGenerationService {
                     method: 'POST',
                     headers: headers,
                     body: bodyText,
-                    url: 'https://globalcord.xingxuantechnology.cn/api/comfy-webhook'
+                    url: this.webhookUrl
                 }
             };
             

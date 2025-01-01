@@ -35,7 +35,7 @@ export class ImageGenerationService {
         // 打印 ComfyDeploy 构造函数参数
         const cdConfig = {
             bearer: env.COMFY_DEPLOY_API_KEY,
-            baseUrl: 'https://globalcord.xingxuantechnology.cn',
+            baseUrl: env.APP_ID,
             validateWebhook: async (info) => {
                 console.log('Custom validateWebhook called with:', info);
                 // 简单返回 true，因为我们在内部处理验证
@@ -72,7 +72,7 @@ export class ImageGenerationService {
             }
 
             // 构建 webhook URL
-            const webhookUrl = 'https://globalcord.xingxuantechnology.cn/api/comfy-webhook';
+            const webhookUrl = `${this.env.APP_ID}/api/comfy-webhook`;
             console.log('11. Using webhook URL:', webhookUrl);
             
             console.log('12. Preparing to queue deployment with params:', {
@@ -91,6 +91,7 @@ export class ImageGenerationService {
                 const result = await this.cd.run.deployment.queue({
                     deploymentId: "857e43fb-a27d-4599-a7b6-e7ea3f2009eb",
                     webhook: webhookUrl,
+                    webhookIntermediateStatus: true,
                     inputs: {
                         "prompt": params.prompt,
                         "aspect_ratio": params.aspect_ratio,
@@ -225,7 +226,7 @@ export class ImageGenerationService {
                         method: 'POST',
                         headers: headers,
                         body: bodyText,
-                        url: 'https://globalcord.xingxuantechnology.cn/api/comfy-webhook'
+                        url: `${this.env.APP_ID}/api/comfy-webhook`
                     }
                 };
                 console.log('6.2. Created webhook request:', webhookRequest);

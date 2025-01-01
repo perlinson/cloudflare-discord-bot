@@ -19,29 +19,29 @@ export class InteractionsAPI {
     return this.client.post(
       Endpoints.INTERACTION_CALLBACK(interactionId, token),
       {
-        type: InteractionResponseTypes.DEFERRED_CHANNEL_MESSAGE,
+        type: InteractionResponseTypes.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
         data: { flags: ephemeral ? 64 : undefined },
       }
     );
   }
 
-  async followUp(applicationId, token, response) {
+  async followUp(interactionId, token, response) {
     return this.client.post(
-      Endpoints.INTERACTION_FOLLOWUP(applicationId, token),
+      Endpoints.INTERACTION_FOLLOWUP(interactionId, token),
       typeof response === 'string' ? { content: response } : response
     );
   }
 
-  async editReply(applicationId, token, response) {
+  async editReply(interactionId, token, response) {
     return this.client.patch(
-      Endpoints.INTERACTION_RESPONSE(applicationId, token),
+      Endpoints.INTERACTION_RESPONSE(interactionId, token),
       typeof response === 'string' ? { content: response } : response
     );
   }
 
-  async deleteReply(applicationId, token) {
+  async deleteReply(interactionId, token) {
     return this.client.delete(
-      Endpoints.INTERACTION_RESPONSE(applicationId, token)
+      Endpoints.INTERACTION_RESPONSE(interactionId, token)
     );
   }
 

@@ -1,17 +1,20 @@
 import { Logger } from '../../../utils/logger.js';
+import { ChannelsAPI } from '../resources/channels.js';
+import { GuildsAPI } from '../resources/guilds.js';
+import { MessagesAPI } from '../resources/messages.js';
+import { UsersAPI } from '../resources/users.js';
+import { InteractionsAPI } from '../resources/interactions.js';
 import { CommandsAPI } from '../resources/commands.js';
+import { WebhooksAPI } from '../resources/webhooks.js';
+import { EmojiAPI } from '../resources/emoji.js';
+import { VoiceAPI } from '../resources/voice.js';
+import { DiscordAPIError } from './errors.js';
+import { API_VERSION } from './constants.js';
 import { InteractionType, InteractionResponseType } from 'discord-interactions';
 
 // Import handlers from new location
-import { handleChatCommands } from '../commands/chatbot/handlers.js';
-import { handleEconomyCommands } from '../commands/economy/handlers.js';
-import { handleImageCommands } from '../commands/image/handlers.js';
-import { handleNetworkCommands } from '../commands/network/handlers.js';
-import { handleOnboardingCommands } from '../commands/onboarding/handlers.js';
-import { handlePhoneCommands } from '../commands/phone/handlers.js';
-import { handleShareCommands } from '../commands/share/handlers.js';
+import {handleCommand} from '../commands/index.js';
 
-const API_VERSION = 'v10';
 const BASE_URL = `https://discord.com/api/${API_VERSION}`;
 
 export class DiscordClient {
@@ -19,116 +22,272 @@ export class DiscordClient {
     this.token = token;
     this.env = env;
     this.logger = new Logger({ prefix: 'DiscordClient' });
-    this.commands = new CommandsAPI(this);
+    
+    // 存储已注册的资源
+    this.resources = new Map();
+    
+    // 注册资源
+    this.registerResource('channels', ChannelsAPI);
+    this.registerResource('guilds', GuildsAPI);
+    this.registerResource('messages', MessagesAPI);
+    this.registerResource('users', UsersAPI);
+    this.registerResource('interactions', InteractionsAPI);
+    this.registerResource('webhooks', WebhooksAPI);
+    this.registerResource('emoji', EmojiAPI);
+    this.registerResource('voice', VoiceAPI);
+    this.registerResource('commands', CommandsAPI);
+
+    // // 初始化基础配置
+    // this.options = {
+    //   baseURL: options.baseURL || 'https://discord.com/api/v10',
+    //   timeout: options.timeout || 15000,
+    //   retries: options.retries || 3,
+    //   ...options
+    // };
+
+    // 初始化工具
+    // this.logger = new Logger({
+    //   prefix: 'DiscordBot',
+    //   level: options.logLevel || Logger.LogLevels.INFO,
+    // });
+
+    // this.config = new ConfigManager({
+    //   defaults: options.defaults || {},
+    //   persistenceProvider: options.configProvider,
+    //   logger: this.logger,
+    // });
+
+    // this.state = new StateManager({
+    //   history: true,
+    //   maxHistoryLength: 1000,
+    //   logger: this.logger,
+    // });
+
+    // this.scheduler = new Scheduler();
+    // this.cache = new CacheManager({
+    //   ttl: 5 * 60 * 1000,
+    //   maxSize: 1000,
+    // });
+
+    // this.rateLimiter = new RateLimiter({
+    //   limit: 5,
+    //   window: 1000,
+    //   globalLimit: 50,
+    //   globalWindow: 1000,
+    // });
+
+
   }
 
-  async handleInteraction(interaction) {
+  // 注册资源
+  registerResource(name, ResourceClass) {
+    if (this.resources.has(name)) {
+      this.logger.warn(`Resource ${name} is already registered, overwriting...`);
+    }
+
     try {
-      this.logger.info('Handling interaction:', {
-        type: interaction.type,
-        commandName: interaction.data?.name
+      // 创建资源实例
+      const resource = new ResourceClass(this);
+      
+      // 存储资源
+      this.resources.set(name, resource);
+      
+      // 在客户端实例上创建访问器
+      Object.defineProperty(this, name, {
+        get() {
+          return this.resources.get(name);
+        },
+        configurable: true,
+        enumerable: true
       });
 
-      if (interaction.type === InteractionType.PING) {
-        this.logger.info('Responding to PING');
-        return {
-          type: InteractionResponseType.PONG
-        };
-      }
+      this.logger.info(`Resource ${name} registered successfully`);
+    } catch (error) {
+      this.logger.error(`Failed to register resource ${name}:`, error);
+      throw error;
+    }
+  }
 
-      if (interaction.type !== InteractionType.APPLICATION_COMMAND) {
-        this.logger.warn('Unsupported interaction type:', interaction.type);
-        return {
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: '不支持的交互类型！',
-            flags: 64
-          }
-        };
-      }
+  // 获取资源
+  getResource(name) {
+    const resource = this.resources.get(name);
+    if (!resource) {
+      throw new Error(`Resource ${name} is not registered`);
+    }
+    return resource;
+  }
 
-      // Handle command
-      const commandName = interaction.data.name;
-      this.logger.info('Processing command:', commandName);
+  // 检查资源是否已注册
+  hasResource(name) {
+    return this.resources.has(name);
+  }
 
-      let response;
-      try {
-        switch (commandName) {
-          case 'chat':
-            response = await handleChatCommands(interaction, this.env);
-            break;
-          case 'economy':
-            response = await handleEconomyCommands(interaction, this.env);
-            break;
-          case 'image':
-            response = await handleImageCommands(interaction, this.env);
-            break;
-          case 'network':
-            response = await handleNetworkCommands(interaction, this.env);
-            break;
-          case 'onboarding':
-            response = await handleOnboardingCommands(interaction, this.env);
-            break;
-          case 'phone':
-            response = await handlePhoneCommands(interaction, this.env);
-            break;
-          case 'share':
-            response = await handleShareCommands(interaction, this.env);
-            break;
-          default:
-            this.logger.warn('Unknown command:', commandName);
-            return {
-              type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-              data: {
-                content: '未知的命令！',
-                flags: 64
-              }
-            };
-        }
+  // 注销资源
+  unregisterResource(name) {
+    if (!this.resources.has(name)) {
+      this.logger.warn(`Resource ${name} is not registered`);
+      return false;
+    }
 
-        if (!response) {
-          throw new Error('Command handler returned no response');
-        }
+    try {
+      // 删除资源实例
+      this.resources.delete(name);
+      
+      // 删除访问器
+      delete this[name];
+      
+      this.logger.info(`Resource ${name} unregistered successfully`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to unregister resource ${name}:`, error);
+      throw error;
+    }
+  }
 
-        this.logger.info('Command handled successfully:', {
-          type: response.type,
-          hasData: !!response.data
-        });
-        
-        return response;
-      } catch (error) {
-        this.logger.error('Error handling command:', {
-          commandName,
-          error: error.message,
-          stack: error.stack
-        });
-        
-        return {
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: `处理命令时发生错误！\n错误信息：${error.message}`,
-            flags: 64
-          }
-        };
+  // 获取所有已注册的资源名称
+  getRegisteredResources() {
+    return Array.from(this.resources.keys());
+  }
+
+  async handleInteraction(interaction, env) {
+    const { type } = interaction;
+
+    try {
+      switch (type) {
+        case InteractionType.PING:
+          return this.handlePing();
+
+        case InteractionType.APPLICATION_COMMAND:
+          return this.handleCommand(interaction, env);
+
+        case InteractionType.MESSAGE_COMPONENT:
+          return this.handleComponent(interaction, env);
+
+        case InteractionType.MODAL_SUBMIT:
+          return this.handleModalSubmit(interaction, env);
+
+        default:
+          return {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: '不支持的交互类型！',
+              flags: 64
+            }
+          };
       }
     } catch (error) {
-      this.logger.error('Error in handleInteraction:', {
-        error: error.message,
-        stack: error.stack
-      });
-      
+      this.logger.error('Error handling interaction:', error);
       return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content: `处理交互时发生错误！\n错误信息：${error.message}`,
+          content: '处理请求时发生错误！',
           flags: 64
         }
       };
     }
   }
 
+  async handleComponent(interaction, env) {
+    const customId = interaction.data.custom_id;
+    
+    // 处理经济系统的按钮
+    if (customId.startsWith('deposit_') || 
+        customId.startsWith('withdraw_') || 
+        customId.startsWith('transfer_') || 
+        customId.startsWith('shop_')) {
+      const { economyButtons } = await import('../commands/economy/buttons.js');
+      
+      if (customId.startsWith('deposit_')) {
+        return economyButtons.handleDeposit(interaction, env);
+      } else if (customId.startsWith('withdraw_')) {
+        return economyButtons.handleWithdraw(interaction, env);
+      } else if (customId.startsWith('transfer_')) {
+        return economyButtons.handleTransfer(interaction, env);
+      } else if (customId.startsWith('shop_')) {
+        return economyButtons.handleShop(interaction, env);
+      }
+    }
+
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: '未知的组件交互！',
+        flags: 64
+      }
+    };
+  }
+
+  async handleModalSubmit(interaction, env) {
+    const customId = interaction.data.custom_id;
+    
+    // 处理经济系统的模态框提交
+    if (customId.endsWith('_modal')) {
+      const { economyButtons } = await import('../commands/economy/buttons.js');
+      return economyButtons.handleModalSubmit(interaction, env);
+    }
+
+    return {
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: '未知的模态框提交！',
+        flags: 64
+      }
+    };
+  }
+
+  async handlePing() {
+    return {
+      type: InteractionResponseType.PONG
+    };
+  }
+
+  async handleCommand(interaction, env) {
+    try {
+      // 延迟响应
+      await this.interactions.deferReply(
+        interaction.id,
+        interaction.token,
+        true
+      );
+
+      // 处理命令
+      const response = await handleCommand(interaction, env);
+      
+      // 确保响应格式正确
+      const editResponse = {
+        content: response.data.content,
+        embeds: response.data.embeds,
+        components: response.data.components,
+        flags: response.data.flags
+      };
+
+      // 使用 editReply 更新延迟的消息
+      await this.interactions.editReply(
+        interaction.application_id,
+        interaction.token,
+        editResponse
+      );
+
+      return response;
+    } catch (error) {
+      this.logger.error('Error in handleCommand:', {
+        error: error.message,
+        stack: error.stack
+      });
+
+      return {
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `处理命令时发生错误！\n错误信息：${error.message}`,
+          flags: 64
+        }
+      };
+    }
+  }
+
+  // HTTP 请求方法
   async makeRequest(endpoint, options = {}) {
-    const url = endpoint;
+    const url = endpoint.startsWith('http') ? endpoint : `${this.options.baseURL}${endpoint}`;
     const headers = {
       'Authorization': `Bot ${this.token}`,
       'Content-Type': 'application/json',
@@ -136,41 +295,26 @@ export class DiscordClient {
     };
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-
-      // 如果 body 是字符串，确保它是有效的 JSON
-      let body = options.body;
-      if (typeof body === 'string') {
-        try {
-          JSON.parse(body); // 验证是否是有效的 JSON
-        } catch (e) {
-          body = JSON.stringify(body); // 如果不是，则进行字符串化
-        }
-      } else if (body && typeof body === 'object') {
-        body = JSON.stringify(body); // 如果是对象，进行字符串化
-      }
-
-      console.log("Request details:", {
-        url,
+      this.logger.debug('Making request:', {
         method: options.method || 'GET',
-        headers: { ...headers, Authorization: '***' },
-        body
+        url,
+        headers: { ...headers, Authorization: '***' }
       });
+
+      const controller = new AbortController();
+      // const timeout = setTimeout(() => controller.abort(), this.options.timeout || 15000);
 
       const response = await fetch(url, {
-        method: options.method || 'GET',
+        ...options,
         headers,
-        body,
-        signal: controller.signal
+        // signal: controller.signal
       });
 
-      clearTimeout(timeout);
+      // clearTimeout(timeout);
 
       const responseText = await response.text();
-      console.log("Response text:", responseText);
-
       let responseData;
+
       try {
         responseData = JSON.parse(responseText);
       } catch (e) {
@@ -178,7 +322,7 @@ export class DiscordClient {
       }
 
       if (!response.ok) {
-        const error = new Error(`Discord API returned ${response.status}: ${JSON.stringify(responseData)}`);
+        const error = new Error(`Discord API returned ${response.status}`);
         error.status = response.status;
         error.response = responseData;
         throw error;
@@ -187,9 +331,9 @@ export class DiscordClient {
       return responseData;
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.error('Request timed out after 10 seconds');
+        this.logger.error('Request timed out');
       } else {
-        console.error('API request failed:', {
+        this.logger.error('API request failed:', {
           endpoint,
           error: error.message,
           response: error.response
@@ -199,7 +343,7 @@ export class DiscordClient {
     }
   }
 
-  // GET request
+  // HTTP 方法包装器
   async get(endpoint, options = {}) {
     return this.makeRequest(endpoint, {
       ...options,
@@ -207,7 +351,6 @@ export class DiscordClient {
     });
   }
 
-  // POST request
   async post(endpoint, data = {}, options = {}) {
     return this.makeRequest(endpoint, {
       ...options,
@@ -216,7 +359,6 @@ export class DiscordClient {
     });
   }
 
-  // PUT request
   async put(endpoint, data = {}, options = {}) {
     return this.makeRequest(endpoint, {
       ...options,
@@ -225,7 +367,6 @@ export class DiscordClient {
     });
   }
 
-  // PATCH request
   async patch(endpoint, data = {}, options = {}) {
     return this.makeRequest(endpoint, {
       ...options,
@@ -234,102 +375,10 @@ export class DiscordClient {
     });
   }
 
-  // DELETE request
   async delete(endpoint, options = {}) {
     return this.makeRequest(endpoint, {
       ...options,
       method: 'DELETE'
     });
-  }
-
-  // Utility methods for common Discord API endpoints
-  
-  // Get guild information
-  async getGuild(guildId) {
-    return this.get(`/guilds/${guildId}`);
-  }
-
-  // Get channel information
-  async getChannel(channelId) {
-    return this.get(`/channels/${channelId}`);
-  }
-
-  // Send message to channel
-  async createMessage(channelId, content) {
-    return this.post(`/channels/${channelId}/messages`, {
-      content: typeof content === 'string' ? content : content.content,
-      embeds: content.embeds,
-      components: content.components,
-      files: content.files,
-      attachments: content.attachments,
-      flags: content.flags
-    });
-  }
-
-  // Edit message
-  async editMessage(channelId, messageId, content) {
-    return this.patch(`/channels/${channelId}/messages/${messageId}`, {
-      content: typeof content === 'string' ? content : content.content,
-      embeds: content.embeds,
-      components: content.components,
-      files: content.files,
-      attachments: content.attachments,
-      flags: content.flags
-    });
-  }
-
-  // Delete message
-  async deleteMessage(channelId, messageId) {
-    return this.delete(`/channels/${channelId}/messages/${messageId}`);
-  }
-
-  // Get guild member
-  async getGuildMember(guildId, userId) {
-    return this.get(`/guilds/${guildId}/members/${userId}`);
-  }
-
-  // Modify guild member
-  async modifyGuildMember(guildId, userId, data) {
-    return this.patch(`/guilds/${guildId}/members/${userId}`, data);
-  }
-
-  // Create guild application command
-  async createGuildCommand(guildId, command) {
-    return this.post(`/applications/${process.env.DISCORD_APPLICATION_ID}/guilds/${guildId}/commands`, command);
-  }
-
-  // Bulk overwrite guild application commands
-  async bulkOverwriteGuildCommands(guildId, commands) {
-    return this.put(`/applications/${process.env.DISCORD_APPLICATION_ID}/guilds/${guildId}/commands`, commands);
-  }
-
-  // Create global application command
-  async createGlobalCommand(command) {
-    return this.post(`/applications/${process.env.DISCORD_APPLICATION_ID}/commands`, command);
-  }
-
-  // Bulk overwrite global application commands
-  async bulkOverwriteGlobalCommands(commands) {
-    return this.put(`/applications/${process.env.DISCORD_APPLICATION_ID}/commands`, commands);
-  }
-
-  // Create interaction response
-  async createInteractionResponse(interactionId, interactionToken, response) {
-    return this.post(`/interactions/${interactionId}/${interactionToken}/callback`, response);
-  }
-
-  // Get original interaction response
-  async getOriginalInteractionResponse(applicationId, interactionToken) {
-    return this.get(`/webhooks/${applicationId}/${interactionToken}/messages/@original`);
-  }
-
-  // Edit original interaction response
-  async editOriginalInteractionResponse(applicationId, interactionToken, response) {
-    return this.patch(`/webhooks/${applicationId}/${interactionToken}/messages/@original`, response);
-  }
-
-  // Delete original interaction response
-  async deleteOriginalInteractionResponse(applicationId, interactionToken) {
-    return this.delete(`/webhooks/${applicationId}/${interactionToken}/messages/@original`);
   }
 }

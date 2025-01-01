@@ -30,17 +30,41 @@ export class UserRepository {
   }
 
   async updateBalance(discordId, amount) {
-    return this.prisma.user.update({
+    console.log('Updating balance:', { discordId, amount, type: typeof amount });
+    const user = await this.prisma.user.findUnique({ where: { discordId } });
+    console.log('Current user:', user);
+
+    // 确保金额是有效的数字
+    const validAmount = Number(amount);
+    if (isNaN(validAmount)) {
+      throw new Error(`Invalid amount: ${amount}`);
+    }
+
+    const result = await this.prisma.user.update({
       where: { discordId },
-      data: { balance: { increment: amount } },
+      data: { balance: { increment: validAmount } },
     });
+    console.log('Update balance result:', result);
+    return result;
   }
 
   async updateBank(discordId, amount) {
-    return this.prisma.user.update({
+    console.log('Updating bank:', { discordId, amount, type: typeof amount });
+    const user = await this.prisma.user.findUnique({ where: { discordId } });
+    console.log('Current user:', user);
+
+    // 确保金额是有效的数字
+    const validAmount = Number(amount);
+    if (isNaN(validAmount)) {
+      throw new Error(`Invalid amount: ${amount}`);
+    }
+
+    const result = await this.prisma.user.update({
       where: { discordId },
-      data: { bank: { increment: amount } },
+      data: { bank: { increment: validAmount } },
     });
+    console.log('Update bank result:', result);
+    return result;
   }
 
   async updateXP(discordId, amount) {

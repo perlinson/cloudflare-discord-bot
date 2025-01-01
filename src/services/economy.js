@@ -23,46 +23,110 @@ export class EconomyService {
 
   async addBalance(discordId, amount) {
     await this.userRepo.updateBalance(discordId, amount);
-    return this.getBalance(discordId);
+    return await this.getBalance(discordId);
   }
 
   async transfer(fromDiscordId, toDiscordId, amount) {
+    this.logger.info('Transfer called with:', { 
+      fromDiscordId, 
+      toDiscordId, 
+      amount, 
+      type: typeof amount 
+    });
+
+    // 验证输入
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+      throw new Error(`Invalid amount: ${amount}`);
+    }
+
     const fromUser = await this.userRepo.findByDiscordId(fromDiscordId);
-    if (!fromUser || fromUser.balance < amount) {
-      throw new Error('Insufficient balance');
+    this.logger.info('From user:', fromUser);
+
+    if (!fromUser) {
+      throw new Error('Sender not found');
+    }
+
+    if (fromUser.balance < amount) {
+      throw new Error(`Insufficient balance: have ${fromUser.balance}, need ${amount}`);
     }
 
     await this.userRepo.updateBalance(fromDiscordId, -amount);
     await this.userRepo.updateBalance(toDiscordId, amount);
 
-    return {
+    const result = {
       from: await this.getBalance(fromDiscordId),
-      to: await this.getBalance(toDiscordId),
+      to: await this.getBalance(toDiscordId)
     };
+    this.logger.info('Transfer result:', result);
+    return result;
   }
 
   async deposit(discordId, amount) {
-    const user = await this.userRepo.findByDiscordId(discordId);
-    if (!user || user.balance < amount) {
-      throw new Error('Insufficient balance');
+    this.logger.info('Deposit called with:', { 
+      discordId, 
+      amount, 
+      type: typeof amount 
+    });
+    
+    // 验证输入
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+      throw new Error(`Invalid amount: ${amount}`);
     }
+
+    const user = await this.userRepo.findByDiscordId(discordId);
+    this.logger.info('Found user:', user);
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.balance < amount) {
+      throw new Error(`Insufficient balance: have ${user.balance}, need ${amount}`);
+    }
+
+    this.logger.info('Updating balance and bank:', { 
+      currentBalance: user.balance,
+      currentBank: user.bank,
+      amount 
+    });
 
     await this.userRepo.updateBalance(discordId, -amount);
     await this.userRepo.updateBank(discordId, amount);
 
-    return this.getBalance(discordId);
+    const result = await this.getBalance(discordId);
+    this.logger.info('Updated balance:', result);
+    return result;
   }
 
   async withdraw(discordId, amount) {
+    this.logger.info('Withdraw called with:', { 
+      discordId, 
+      amount, 
+      type: typeof amount 
+    });
+
+    // 验证输入
+    if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+      throw new Error(`Invalid amount: ${amount}`);
+    }
+
     const user = await this.userRepo.findByDiscordId(discordId);
-    if (!user || user.bank < amount) {
-      throw new Error('Insufficient bank balance');
+    this.logger.info('Found user:', user);
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.bank < amount) {
+      throw new Error(`Insufficient bank balance: have ${user.bank}, need ${amount}`);
     }
 
     await this.userRepo.updateBank(discordId, -amount);
     await this.userRepo.updateBalance(discordId, amount);
 
-    return this.getBalance(discordId);
+    const result = await this.getBalance(discordId);
+    this.logger.info('Updated balance:', result);
+    return result;
   }
 
   async claimDaily(discordId) {
@@ -79,7 +143,8 @@ export class EconomyService {
 
     const amount = 100; // 每日奖励金额
     await this.userRepo.updateDailyReward(discordId);
-    return this.addBalance(discordId, amount);
+    const newBalance =  await this.addBalance(discordId, amount)
+    return {...newBalance, amount};
   }
 
   async claimWeekly(discordId) {
@@ -96,11 +161,13 @@ export class EconomyService {
 
     const amount = 500; // 每周奖励金额
     await this.userRepo.updateWeeklyReward(discordId);
-    return this.addBalance(discordId, amount);
+    const newBalance =  await this.addBalance(discordId, amount)
+    return {...newBalance, amount};
   }
 
   async work(discordId) {
     const amount = Math.floor(Math.random() * 50) + 50; // 50-100 之间的随机金额
-    return this.addBalance(discordId, amount);
+    const newBalance =  await this.addBalance(discordId, amount)
+    return {...newBalance, amount};
   }
 }
