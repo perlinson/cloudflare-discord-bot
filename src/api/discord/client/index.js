@@ -23,6 +23,14 @@ export class DiscordClient {
     this.env = env;
     this.logger = new Logger({ prefix: 'DiscordClient' });
     
+    // 初始化基础配置
+    this.options = {
+      baseURL: 'https://discord.com/api/v10',
+      timeout: 15000,
+      retries: 3,
+      ...options
+    };
+
     // 存储已注册的资源
     this.resources = new Map();
     
@@ -37,46 +45,11 @@ export class DiscordClient {
     this.registerResource('voice', VoiceAPI);
     this.registerResource('commands', CommandsAPI);
 
-    // // 初始化基础配置
-    // this.options = {
-    //   baseURL: options.baseURL || 'https://discord.com/api/v10',
-    //   timeout: options.timeout || 15000,
-    //   retries: options.retries || 3,
-    //   ...options
-    // };
-
-    // 初始化工具
-    // this.logger = new Logger({
-    //   prefix: 'DiscordBot',
-    //   level: options.logLevel || Logger.LogLevels.INFO,
-    // });
-
-    // this.config = new ConfigManager({
-    //   defaults: options.defaults || {},
-    //   persistenceProvider: options.configProvider,
-    //   logger: this.logger,
-    // });
-
-    // this.state = new StateManager({
-    //   history: true,
-    //   maxHistoryLength: 1000,
-    //   logger: this.logger,
-    // });
-
-    // this.scheduler = new Scheduler();
-    // this.cache = new CacheManager({
-    //   ttl: 5 * 60 * 1000,
-    //   maxSize: 1000,
-    // });
-
-    // this.rateLimiter = new RateLimiter({
-    //   limit: 5,
-    //   window: 1000,
-    //   globalLimit: 50,
-    //   globalWindow: 1000,
-    // });
-
-
+    this.logger.info('DiscordClient initialized with options:', {
+      baseURL: this.options.baseURL,
+      timeout: this.options.timeout,
+      retries: this.options.retries
+    });
   }
 
   // 注册资源
@@ -101,7 +74,7 @@ export class DiscordClient {
         enumerable: true
       });
 
-      this.logger.info(`Resource ${name} registered successfully`);
+      // this.logger.info(`Resource ${name} registered successfully`);
     } catch (error) {
       this.logger.error(`Failed to register resource ${name}:`, error);
       throw error;
@@ -151,7 +124,6 @@ export class DiscordClient {
 
   async handleInteraction(interaction, env) {
     const { type } = interaction;
-
     try {
       switch (type) {
         case InteractionType.PING:
@@ -190,24 +162,42 @@ export class DiscordClient {
   async handleComponent(interaction, env) {
     const customId = interaction.data.custom_id;
     
+    // 解析按钮ID
+    const [namespace, action, ...params] = customId.split(':');
+    
+    this.logger.info('Handling component interaction:', {
+      customId,
+      namespace,
+      action,
+      params
+    });
+
     // 处理经济系统的按钮
-    if (customId.startsWith('deposit_') || 
-        customId.startsWith('withdraw_') || 
-        customId.startsWith('transfer_') || 
-        customId.startsWith('shop_')) {
+    if (namespace === 'economy') {
       const { economyButtons } = await import('../commands/economy/buttons.js');
       
-      if (customId.startsWith('deposit_')) {
-        return economyButtons.handleDeposit(interaction, env);
-      } else if (customId.startsWith('withdraw_')) {
-        return economyButtons.handleWithdraw(interaction, env);
-      } else if (customId.startsWith('transfer_')) {
-        return economyButtons.handleTransfer(interaction, env);
-      } else if (customId.startsWith('shop_')) {
-        return economyButtons.handleShop(interaction, env);
+      switch (action) {
+        case 'deposit':
+          return economyButtons.handleDeposit(interaction, env);
+        case 'withdraw':
+          return economyButtons.handleWithdraw(interaction, env);
+        case 'transfer':
+          return economyButtons.handleTransfer(interaction, env);
+        case 'shop':
+          return economyButtons.handleShop(interaction, env);
+        default:
+          this.logger.warn('Unknown economy action:', action);
+          return {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: '未知的操作！',
+              flags: 64
+            }
+          };
       }
     }
 
+    this.logger.warn('Unknown component namespace:', namespace);
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -219,9 +209,9 @@ export class DiscordClient {
 
   async handleModalSubmit(interaction, env) {
     const customId = interaction.data.custom_id;
-    
+    console.log('Handling modal submit:', customId);
     // 处理经济系统的模态框提交
-    if (customId.endsWith('_modal')) {
+    if (customId.startsWith('economy')) {
       const { economyButtons } = await import('../commands/economy/buttons.js');
       return economyButtons.handleModalSubmit(interaction, env);
     }
@@ -244,14 +234,16 @@ export class DiscordClient {
   async handleCommand(interaction, env) {
     try {
       // 延迟响应
-      await this.interactions.deferReply(
+      const message = await this.interactions.deferReply(
         interaction.id,
         interaction.token,
         true
       );
 
+      console.log("message", message)
+
       // 处理命令
-      const response = await handleCommand(interaction, env);
+      const response = await handleCommand(interaction, this, env);
       
       // 确保响应格式正确
       const editResponse = {
@@ -288,57 +280,95 @@ export class DiscordClient {
   // HTTP 请求方法
   async makeRequest(endpoint, options = {}) {
     const url = endpoint.startsWith('http') ? endpoint : `${this.options.baseURL}${endpoint}`;
-    const headers = {
-      'Authorization': `Bot ${this.token}`,
-      'Content-Type': 'application/json',
-      ...options.headers
+    const requestOptions = {
+      ...options,
+      headers: {
+        'Authorization': `Bot ${this.token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
     };
 
-    try {
-      this.logger.debug('Making request:', {
-        method: options.method || 'GET',
-        url,
-        headers: { ...headers, Authorization: '***' }
-      });
+    // 确保 body 是字符串
+    if (requestOptions.body && typeof requestOptions.body === 'object') {
+      requestOptions.body = JSON.stringify(requestOptions.body);
+    }
 
+    this.logger.info('Making request:', {
+      url,
+      method: options.method || 'GET',
+      headers: Object.keys(requestOptions.headers),
+      bodyLength: requestOptions.body ? requestOptions.body.length : 0
+    });
+
+    try {
       const controller = new AbortController();
-      // const timeout = setTimeout(() => controller.abort(), this.options.timeout || 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 秒超时
 
       const response = await fetch(url, {
-        ...options,
-        headers,
-        // signal: controller.signal
+        ...requestOptions,
+        signal: controller.signal,
+        cf: {
+          cacheTtl: 0,
+          cacheEverything: false
+        }
       });
 
-      // clearTimeout(timeout);
-
-      const responseText = await response.text();
-      let responseData;
-
-      try {
-        responseData = JSON.parse(responseText);
-      } catch (e) {
-        responseData = responseText;
-      }
+      clearTimeout(timeoutId);
+      
+      this.logger.info('Received response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
 
       if (!response.ok) {
-        const error = new Error(`Discord API returned ${response.status}`);
-        error.status = response.status;
-        error.response = responseData;
-        throw error;
+        const errorBody = await response.text();
+        this.logger.error('Request failed:', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          body: errorBody
+        });
+        throw new Error(`Request failed: ${response.status} ${response.statusText} - ${errorBody}`);
       }
 
-      return responseData;
+      const contentType = response.headers.get('content-type');
+      let responseData;
+      
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+
+        this.logger.info('Response data:', {
+          contentType,
+          dataType: typeof responseData,
+          isError: responseData instanceof Error
+        });
+
+        return responseData;
+      } catch (parseError) {
+        this.logger.error('Failed to parse response:', {
+          error: parseError.message,
+          contentType,
+          responseText: await response.text()
+        });
+        throw parseError;
+      }
     } catch (error) {
       if (error.name === 'AbortError') {
-        this.logger.error('Request timed out');
-      } else {
-        this.logger.error('API request failed:', {
-          endpoint,
-          error: error.message,
-          response: error.response
-        });
+        this.logger.error('Request timed out:', { url });
+        throw new Error(`Request timed out after 30 seconds: ${url}`);
       }
+
+      this.logger.error('Request error:', {
+        url,
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }

@@ -5,7 +5,7 @@ import { MessageBuilder } from '../../utils/MessageBuilder.js';
 import { Logger } from '../../../../utils/logger.js';
 import { EconomyService } from '../../../../services/economy.js';
 
-const logger = new Logger({ prefix: 'EconomyButtons' });
+const logger = new Logger({ prefix: 'ImageButtons' });
 
 // 处理存款按钮
 async function handleDeposit(interaction, env) {
@@ -16,7 +16,7 @@ async function handleDeposit(interaction, env) {
   // 创建模态框让用户输入存款金额
   const modal = {
     title: "存款",
-    custom_id: `economy:modal:deposit:${targetUser}`,
+    custom_id: `image:modal:deposit:${targetUser}`,
     components: [
       {
         type: 1,
@@ -53,7 +53,7 @@ async function handleWithdraw(interaction, env) {
   // 创建模态框让用户输入取款金额
   const modal = {
     title: "取款",
-    custom_id: `economy:modal:withdraw:${targetUser}`,
+    custom_id: `image:modal:withdraw:${targetUser}`,
     components: [
       {
         type: 1,
@@ -88,7 +88,7 @@ async function handleTransfer(interaction, env) {
   // 创建模态框让用户输入转账信息
   const modal = {
     title: "转账",
-    custom_id: `economy:modal:transfer:${targetUser}`,
+    custom_id: `image:modal:transfer:${targetUser}`,
     components: [
       {
         type: 1,
@@ -162,7 +162,7 @@ async function handleShop(interaction, env) {
 
       components.addButton({
         label: `购买 ${item.name}`,
-        customId: `economy:buy:${item.id}:${targetUser}`,
+        customId: `image:buy:${item.id}:${targetUser}`,
         style: ComponentBuilder.ButtonStyles.PRIMARY
       });
     });

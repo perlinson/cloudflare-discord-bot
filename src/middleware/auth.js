@@ -1,7 +1,7 @@
 import { verifyDiscordRequest } from '../utils/discord-verify.js';
 import { APIError } from '../utils/helpers.js';
 
-export async function authMiddleware(request, env, ctx, next) {
+export async function authMiddleware(request, env, next) {
   const signature = request.headers.get('x-signature-ed25519');
   const timestamp = request.headers.get('x-signature-timestamp');
 

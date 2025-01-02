@@ -1,12 +1,8 @@
 import { InteractionResponseType } from 'discord-interactions';
 import { PhoneService } from './service.js';
-import { InteractionsAPI } from '../../resources/interactions.js';
-import { DiscordClient } from '../../client/index.js';
 
-export async function handlePhoneCommands(interaction, env) {
+export async function handlePhoneCommands(interaction, client, env) {
   const phoneService = new PhoneService(env);
-  const client = new DiscordClient(env.DISCORD_TOKEN, {}, env);
-  const interactionsApi = new InteractionsAPI(client);
   const subcommand = interaction.data.options?.[0];
 
   if (!subcommand) {
@@ -49,7 +45,7 @@ export async function handlePhoneCommands(interaction, env) {
             ]);
 
             if (fromCall || toCall) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -66,7 +62,7 @@ export async function handlePhoneCommands(interaction, env) {
               interaction.channel_id
             );
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -75,7 +71,7 @@ export async function handlePhoneCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Phone] Error initiating call:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -101,7 +97,7 @@ export async function handlePhoneCommands(interaction, env) {
           try {
             const activeCall = await phoneService.getActiveCall(interaction.member.user.id);
             if (!activeCall) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -115,7 +111,7 @@ export async function handlePhoneCommands(interaction, env) {
             const call = await phoneService.endCall(activeCall.id);
             const duration = Math.floor((call.endTime - call.startTime) / 1000);
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -124,7 +120,7 @@ export async function handlePhoneCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Phone] Error ending call:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -150,7 +146,7 @@ export async function handlePhoneCommands(interaction, env) {
           try {
             const activeCall = await phoneService.getActiveCall(interaction.member.user.id);
             if (!activeCall) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -162,7 +158,7 @@ export async function handlePhoneCommands(interaction, env) {
             }
 
             const duration = Math.floor((Date.now() - activeCall.startTime) / 1000);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -172,7 +168,7 @@ export async function handlePhoneCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Phone] Error getting call status:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -198,7 +194,7 @@ export async function handlePhoneCommands(interaction, env) {
           try {
             const history = await phoneService.getCallHistory(interaction.member.user.id);
             if (history.length === 0) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -217,7 +213,7 @@ export async function handlePhoneCommands(interaction, env) {
               })
               .join('\n');
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -227,7 +223,7 @@ export async function handlePhoneCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Phone] Error getting call history:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {

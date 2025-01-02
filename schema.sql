@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS generated_images (
     run_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     guild_id TEXT NOT NULL,
-    channel_id TEXT NOT NULL,
+    interaction_id TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     image_path TEXT NOT NULL,
     original_url TEXT NOT NULL,

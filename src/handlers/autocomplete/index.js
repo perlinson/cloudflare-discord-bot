@@ -2,7 +2,7 @@ import { InteractionResponseTypes } from '../../api/discord/client/constants.js'
 import { DiscordClient } from '../../api/discord/client/index.js';
 
 export class AutocompleteHandler {
-  static async handle(interaction, env, ctx) {
+  static async handle(interaction, env) {
     const { data: { name, options } } = interaction;
 
     try {
@@ -97,9 +97,7 @@ export class AutocompleteHandler {
     };
   }
 
-  static async handleUsers(query, interaction, env) {
-    const client = new DiscordClient(env.DISCORD_TOKEN);
-
+  static async handleUsers(query, interaction, client, env) {
     try {
       // 获取服务器成员
       const members = await client.guilds.getMembers(interaction.guild_id, {

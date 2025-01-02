@@ -5,11 +5,8 @@ import { EmbedBuilder } from '../../api/discord/utils/EmbedBuilder.js';
 import { ComponentBuilder } from '../../api/discord/utils/ComponentBuilder.js';
 
 export class CommandHandler {
-  static async handle(interaction, env, ctx) {
+  static async handle(interaction, client, env) {
     const { data: { name, options } } = interaction;
-
-    // 初始化 Discord 客户端
-    const client = new DiscordClient(env.DISCORD_TOKEN);
 
     try {
       switch (name) {

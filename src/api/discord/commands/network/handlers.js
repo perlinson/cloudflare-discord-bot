@@ -1,12 +1,8 @@
 import { InteractionResponseType } from 'discord-interactions';
 import { NetworkService } from './service.js';
-import { InteractionsAPI } from '../../resources/interactions.js';
-import { DiscordClient } from '../../client/index.js';
 
-export async function handleNetworkCommands(interaction, env) {
+export async function handleNetworkCommands(interaction, client, env) {
   const networkService = new NetworkService(env);
-  const client = new DiscordClient(env.DISCORD_TOKEN, {}, env);
-  const interactionsApi = new InteractionsAPI(client);
   const subcommand = interaction.data.options?.[0];
 
   if (!subcommand) {
@@ -44,7 +40,7 @@ export async function handleNetworkCommands(interaction, env) {
           try {
             const result = await networkService.ping(host);
             if (!result.success) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -55,7 +51,7 @@ export async function handleNetworkCommands(interaction, env) {
               return;
             }
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -64,7 +60,7 @@ export async function handleNetworkCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Network] Error pinging host:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -101,7 +97,7 @@ export async function handleNetworkCommands(interaction, env) {
           try {
             const result = await networkService.lookup(domain);
             if (!result.success) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -116,7 +112,7 @@ export async function handleNetworkCommands(interaction, env) {
               .map(record => `类型：${record.type}, TTL：${record.TTL}, 数据：${record.data}`)
               .join('\n');
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -125,7 +121,7 @@ export async function handleNetworkCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Network] Error looking up domain:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {

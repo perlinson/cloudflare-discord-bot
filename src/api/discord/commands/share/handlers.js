@@ -1,12 +1,8 @@
 import { InteractionResponseType } from 'discord-interactions';
 import { ShareService } from './service.js';
-import { InteractionsAPI } from '../../resources/interactions.js';
-import { DiscordClient } from '../../client/index.js';
 
-export async function handleShareCommands(interaction, env) {
+export async function handleShareCommands(interaction, client, env) {
   const shareService = new ShareService(env);
-  const client = new DiscordClient(env.DISCORD_TOKEN, {}, env);
-  const interactionsApi = new InteractionsAPI(client);
   const subcommand = interaction.data.options?.[0];
 
   if (!subcommand) {
@@ -52,7 +48,7 @@ export async function handleShareCommands(interaction, env) {
               type
             );
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -61,7 +57,7 @@ export async function handleShareCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Share] Error posting content:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -100,7 +96,7 @@ export async function handleShareCommands(interaction, env) {
           try {
             const share = await shareService.likeShare(shareId, interaction.member.user.id);
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -109,7 +105,7 @@ export async function handleShareCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Share] Error liking content:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -154,7 +150,7 @@ export async function handleShareCommands(interaction, env) {
               comment
             );
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -163,7 +159,7 @@ export async function handleShareCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Share] Error adding comment:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -202,7 +198,7 @@ export async function handleShareCommands(interaction, env) {
           try {
             const share = await shareService.getShare(shareId);
             if (!share) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -217,7 +213,7 @@ export async function handleShareCommands(interaction, env) {
               .map(comment => `<@${comment.userId}>: ${comment.content}`)
               .join('\n');
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -227,7 +223,7 @@ export async function handleShareCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Share] Error viewing share:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -257,7 +253,7 @@ export async function handleShareCommands(interaction, env) {
           try {
             const shares = await shareService.getUserShares(targetUser);
             if (shares.length === 0) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -272,7 +268,7 @@ export async function handleShareCommands(interaction, env) {
               .map((share, index) => `${index + 1}. ID：${share.id}\n内容：${share.content}\n点赞：${share.likes} | 评论：${share.comments.length}`)
               .join('\n\n');
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -282,7 +278,7 @@ export async function handleShareCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Share] Error listing content:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {

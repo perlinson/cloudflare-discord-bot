@@ -11,6 +11,7 @@ import {
 import { DiscordClient } from './api/discord/client/index.js';
 import { DISCORD_API_URL } from './api/discord/client/constants.js';
 import { GuildMemberEvents } from './api/discord/events/guildMember.js';
+import { imageService } from './api/discord/commands/image/service.js';
 
 class JsonResponse extends Response {
   constructor(body, init) {
@@ -179,57 +180,59 @@ router.post ('/', async (request, env, ctx) => {
 });
 
 // Main Discord interaction route
-// Main Discord interaction route
 router.post('/interactions', async (request, env, ctx) => {
-  // console.log('Received interaction request at /interactions', request);
-  const { isValid, interaction } = await verifyDiscordRequest(request, env);
-  if (!isValid || !interaction) {
-    return new Response('Bad request signature.', { status: 401 });
-  }
-
-  // Handle different types of interactions
-  if (interaction.type === InteractionType.PING) {
-    return new JsonResponse({
-      type: InteractionResponseType.PONG,
-    });
-  }
-
-  const discordClient = new DiscordClient(env.DISCORD_TOKEN, {}, env);
+  console.log('Received interaction request');
   
-  // 处理 Discord 事件
-  if (request.headers.get('X-Discord-Event-Type')) {
-    const eventType = request.headers.get('X-Discord-Event-Type');
-    const eventData = await request.json();
-    const guildMemberEvents = new GuildMemberEvents(discordClient);
-    switch (eventType) {
-      case 'GUILD_MEMBER_ADD':
-        console.log('GUILD_MEMBER_ADD', eventData);
-        await guildMemberEvents.handleMemberAdd(eventData);
-        break;
-      case 'GUILD_MEMBER_REMOVE':
-        console.log('GUILD_MEMBER_REMOVE', eventData);
-        await guildMemberEvents.handleMemberRemove(eventData);
-        break;
+  // 创建一个新的 Promise 来处理请求
+  const responsePromise = new Promise(async (resolve, reject) => {
+    try {
+      const { isValid, interaction } = await verifyDiscordRequest(request, env);
+      if (!isValid || !interaction) {
+        console.error('Invalid Discord request');
+        resolve(new Response('Bad request signature.', { status: 401 }));
+        return;
+      }
+
+      console.log('Interaction verified:', {
+        type: interaction.type,
+        data: interaction.data
+      });
+
+      const client = new DiscordClient(env.DISCORD_TOKEN, {}, env);
+      const response = await client.handleInteraction(interaction, env);
+      
+      console.log('Interaction handled, sending response');
+      resolve(new JsonResponse(response));
+    } catch (error) {
+      console.error('Error in interaction route:', {
+        error: error.message,
+        stack: error.stack
+      });
+      resolve(new Response('Internal Server Error', { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          error: error.message,
+          stack: error.stack
+        })
+      }));
     }
+  });
 
-    return new Response('OK', { status: 200 });
-  }
+  // 等待 Promise 完成或超时
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(new Response('Request timed out', { status: 504 }));
+    }, 25000); // 25 秒超时
+  });
 
+  // 使用 ctx.waitUntil 确保异步操作完成
+  ctx.waitUntil(responsePromise);
 
-  try {
-    const response = await discordClient.handleInteraction(interaction,env);
-    
-    // // 如果有长时间运行的任务，使用 ctx.waitUntil
-    // if (response.backgroundTask) {
-    //   ctx.waitUntil(response.backgroundTask);
-    //   delete response.backgroundTask;
-    // }
-    
-    return new JsonResponse(response);
-  } catch (error) {
-    console.error('Error handling interaction:', error);
-    return new Response('Internal Server Error', { status: 500 });
-  }
+  // 返回先完成的 Promise
+  return Promise.race([responsePromise, timeoutPromise]);
 });
 
 // Image progress update route
@@ -267,19 +270,23 @@ router.post('/api/image-progress', async (request, env) => {
 
 // ComfyDeploy webhook handler
 router.post('/api/comfy-webhook', async (request, env) => {
-  console.log('Received webhook request at /api/comfy-webhook');
+
   try {
     if (!imageService.cd) {
       console.log('Initializing imageService for webhook');
       imageService.initialize(env);
     }
 
-    const result = await imageService.handleWebhook(request);
+    const result = await imageService.handleWebhook(request, env);
     return new JsonResponse(result || { status: 'ok' });
   } catch (error) {
     console.error('Error handling webhook:', error);
     return new Response(error.message, { status: 500 });
   }
+});
+
+router.get('/api/comfy-webhook', async (request, env) => {
+  return new JsonResponse({ status: 'ok' });
 });
 
 // Health check

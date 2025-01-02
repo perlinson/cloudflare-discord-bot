@@ -1,6 +1,5 @@
 export const API_VERSION = '10';
 export const DISCORD_API_URL = 'https://discord.com/api';
-export const INTERACTION_API_URL = 'https://globalcord.share.zrok.io';
 
 export const Endpoints = {
   // Discord API endpoints (using official API)

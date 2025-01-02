@@ -27,9 +27,6 @@ const agent = new HttpsProxyAgent('http://127.0.0.1:7897');
 
 async function bulkOverwriteGuildCommands(){
 
-
-  const discordClient = new DiscordClient(process.env.DISCORD_TOKEN, {}, process.env);
-
   if (!process.env.DISCORD_TOKEN || !process.env.DISCORD_APPLICATION_ID) {
     throw new Error('Missing required environment variables');
   }

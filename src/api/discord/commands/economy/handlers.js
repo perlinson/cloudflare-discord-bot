@@ -1,13 +1,11 @@
 import { InteractionResponseType } from 'discord-interactions';
 import { EconomyService } from '../../../../services/economy.js';
-import { InteractionsAPI } from '../../resources/interactions.js';
-import { DiscordClient } from '../../client/index.js';
 import { Logger } from '../../../../utils/logger.js';
 import { EmbedBuilder } from '../../utils/EmbedBuilder.js';
 import { ComponentBuilder } from '../../utils/ComponentBuilder.js';
 import { MessageBuilder } from '../../utils/MessageBuilder.js';
 
-export async function handleEconomyCommands(interaction, env) {
+export async function handleEconomyCommands(interaction, client, env) {
   const logger = new Logger({ prefix: 'EconomyHandler' });
   const economyService = new EconomyService(env);
   const userId = interaction.member.user.id;
@@ -50,23 +48,23 @@ export async function handleEconomyCommands(interaction, env) {
           .addActionRow()
           .addButton({
             label: '存款',
-            customId: `deposit_${targetUser}`,
+            customId: `economy:deposit:${targetUser}`,
             style: ComponentBuilder.ButtonStyles.PRIMARY
           })
           .addButton({
             label: '取款',
-            customId: `withdraw_${targetUser}`,
+            customId: `economy:withdraw:${targetUser}`,
             style: ComponentBuilder.ButtonStyles.PRIMARY
           })
           .addActionRow()
           .addButton({
             label: '转账',
-            customId: `transfer_${targetUser}`,
+            customId: `economy:transfer:${targetUser}`,
             style: ComponentBuilder.ButtonStyles.SUCCESS
           })
           .addButton({
             label: '商店',
-            customId: `shop_${targetUser}`,
+            customId: `economy:shop:${targetUser}`,
             style: ComponentBuilder.ButtonStyles.SECONDARY
           });
 

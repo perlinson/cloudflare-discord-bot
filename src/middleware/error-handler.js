@@ -3,7 +3,7 @@ import { Logger } from '../utils/logger.js';
 
 const logger = new Logger({ prefix: 'ErrorHandler' });
 
-export async function errorHandler(request, env, ctx, next) {
+export async function errorHandler(request, env, next) {
   try {
     return await next();
   } catch (error) {

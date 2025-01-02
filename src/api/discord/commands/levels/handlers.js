@@ -1,12 +1,8 @@
 import { InteractionResponseType } from 'discord-interactions';
 import { LevelService } from '../../../../services/level';
-import { InteractionsAPI } from '../../resources/interactions.js';
-import { DiscordClient } from '../../client/index.js';
 
-export async function handleRankCommand(interaction, subcommand, env) {
+export async function handleRankCommand(interaction, subcommand, client, env) {
   const levelService = new LevelService(env);
-  const client = new DiscordClient(env.DISCORD_TOKEN, {}, env);
-  const interactionsApi = new InteractionsAPI(client);
   const targetUser = subcommand.options?.find(opt => opt.name === 'user')?.value || interaction.member.user.id;
 
   // Return deferred response immediately
@@ -21,7 +17,7 @@ export async function handleRankCommand(interaction, subcommand, env) {
   Promise.resolve().then(async () => {
     try {
       const rank = await levelService.getRank(targetUser);
-      await interactionsApi.editReply(
+      await client.interactions.editReply(
         env.DISCORD_APPLICATION_ID,
         interaction.token,
         {
@@ -30,7 +26,7 @@ export async function handleRankCommand(interaction, subcommand, env) {
       );
     } catch (error) {
       console.error('[Levels] Error getting rank:', error);
-      await interactionsApi.editReply(
+      await client.interactions.editReply(
         env.DISCORD_APPLICATION_ID,
         interaction.token,
         {
@@ -44,10 +40,8 @@ export async function handleRankCommand(interaction, subcommand, env) {
   return response;
 }
 
-export async function handleLeaderboardCommand(interaction, subcommand, env) {
+export async function handleLeaderboardCommand(interaction, subcommand, client, env) {
   const levelService = new LevelService(env);
-  const client = new DiscordClient(env.DISCORD_TOKEN, {}, env);
-  const interactionsApi = new InteractionsAPI(client);
   const page = subcommand.options?.find(opt => opt.name === 'page')?.value || 1;
 
   // Return deferred response immediately
@@ -67,7 +61,7 @@ export async function handleLeaderboardCommand(interaction, subcommand, env) {
         return `${position}. ${user.username} - Level ${user.level} (${user.xp} XP)`;
       }).join('\n');
 
-      await interactionsApi.editReply(
+      await client.interactions.editReply(
         env.DISCORD_APPLICATION_ID,
         interaction.token,
         {
@@ -76,7 +70,7 @@ export async function handleLeaderboardCommand(interaction, subcommand, env) {
       );
     } catch (error) {
       console.error('[Levels] Error getting leaderboard:', error);
-      await interactionsApi.editReply(
+      await client.interactions.editReply(
         env.DISCORD_APPLICATION_ID,
         interaction.token,
         {

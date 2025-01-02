@@ -2,9 +2,9 @@ import { CommandHandler } from './commands/index.js';
 import { ComponentHandler } from './components/index.js';
 import { AutocompleteHandler } from './autocomplete/index.js';
 import { ModalHandler } from './modals/index.js';
-import { InteractionResponseTypes } from '../api/discord/client/constants.js';
+import { InteractionResponseTypes } from './client/constants.js';
 
-export async function handleInteraction(interaction, env, ctx) {
+export async function handleInteraction(interaction, client, env) {
   try {
     let response;
 
@@ -14,19 +14,19 @@ export async function handleInteraction(interaction, env, ctx) {
         break;
 
       case 2: // APPLICATION_COMMAND
-        response = await CommandHandler.handle(interaction, env, ctx);
+        response = await CommandHandler.handle(interaction, client, env);
         break;
 
       case 3: // MESSAGE_COMPONENT
-        response = await ComponentHandler.handle(interaction, env, ctx);
+        response = await ComponentHandler.handle(interaction, client, env);
         break;
 
       case 4: // APPLICATION_COMMAND_AUTOCOMPLETE
-        response = await AutocompleteHandler.handle(interaction, env, ctx);
+        response = await AutocompleteHandler.handle(interaction, client, env);
         break;
 
       case 5: // MODAL_SUBMIT
-        response = await ModalHandler.handle(interaction, env, ctx);
+        response = await ModalHandler.handle(interaction, client, env);
         break;
 
       default:

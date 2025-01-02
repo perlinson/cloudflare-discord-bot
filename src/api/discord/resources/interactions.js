@@ -16,13 +16,34 @@ export class InteractionsAPI {
   }
 
   async deferReply(interactionId, token, ephemeral = false) {
-    return this.client.post(
-      Endpoints.INTERACTION_CALLBACK(interactionId, token),
-      {
-        type: InteractionResponseTypes.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-        data: { flags: ephemeral ? 64 : undefined },
-      }
-    );
+    this.client.logger.info('Deferring reply:', {
+      interactionId,
+      token: token.substring(0, 10) + '...',
+      ephemeral
+    });
+
+    const endpoint = Endpoints.INTERACTION_CALLBACK(interactionId, token);
+    const payload = {
+      type: InteractionResponseTypes.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+      data: { flags: ephemeral ? 64 : undefined }
+    };
+
+    this.client.logger.info('Defer reply request:', {
+      endpoint,
+      payload
+    });
+
+    try {
+      const response = await this.client.post(endpoint, payload);
+      this.client.logger.info('Deferred reply response:', { response });
+      return response;
+    } catch (error) {
+      this.client.logger.error('Defer reply failed:', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   }
 
   async followUp(interactionId, token, response) {
@@ -33,10 +54,23 @@ export class InteractionsAPI {
   }
 
   async editReply(interactionId, token, response) {
-    return this.client.patch(
-      Endpoints.INTERACTION_RESPONSE(interactionId, token),
+    this.client.logger.info('Editing reply:', {
+      interactionId,
+      token: token.substring(0, 10) + '...',
+      responseType: typeof response,
+      responseContent: typeof response === 'string' ? response : 'object'
+    });
+
+    const endpoint = Endpoints.INTERACTION_RESPONSE(interactionId, token);
+    this.client.logger.info('Edit reply endpoint:', { endpoint });
+
+    const result = await this.client.patch(
+      endpoint,
       typeof response === 'string' ? { content: response } : response
     );
+
+    this.client.logger.info('Edit reply result:', { result });
+    return result;
   }
 
   async deleteReply(interactionId, token) {

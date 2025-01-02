@@ -31,7 +31,7 @@ const handlers = {
 };
 
 // Main command handler
-export async function handleCommand(interaction, env, ctx) {
+export async function handleCommand(interaction, client, env) {
   const { name } = interaction.data;
   console.log(`Handling interaction: ${interaction}`);
   const handler = handlers[name];
@@ -40,5 +40,5 @@ export async function handleCommand(interaction, env, ctx) {
     throw new Error(`Unknown command: ${name}`);
   }
 
-  return handler(interaction, env, ctx);
+  return handler(interaction, client, env);
 }

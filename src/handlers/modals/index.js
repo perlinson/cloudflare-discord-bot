@@ -3,7 +3,7 @@ import { DiscordClient } from '../../api/discord/client/index.js';
 import { EmbedBuilder } from '../../api/discord/utils/EmbedBuilder.js';
 
 export class ModalHandler {
-  static async handle(interaction, env, ctx) {
+  static async handle(interaction, env) {
     const { data: { custom_id, components } } = interaction;
 
     try {
@@ -58,7 +58,7 @@ export class ModalHandler {
   }
 
   // 处理反馈表单
-  static async handleFeedback(formData, interaction, env) {
+  static async handleFeedback(formData, interaction, client ,env) {
     const { 'feedback:type': type, 'feedback:content': content } = formData;
 
     try {
@@ -70,7 +70,6 @@ export class ModalHandler {
       .run();
 
       // 发送反馈到日志频道
-      const client = new DiscordClient(env.DISCORD_TOKEN);
       const logChannelId = await env.KV.get('logChannel');
       
       if (logChannelId) {
@@ -100,7 +99,7 @@ export class ModalHandler {
   }
 
   // 处理举报表单
-  static async handleReport(formData, interaction, env) {
+  static async handleReport(formData, interaction, client, env) {
     const {
       'report:user': reportedUser,
       'report:reason': reason,
@@ -116,7 +115,6 @@ export class ModalHandler {
       .run();
 
       // 发送举报到管理频道
-      const client = new DiscordClient(env.DISCORD_TOKEN);
       const modChannelId = await env.KV.get('modChannel');
       
       if (modChannelId) {
@@ -147,7 +145,7 @@ export class ModalHandler {
   }
 
   // 处理工单表单
-  static async handleTicket(action, formData, interaction, env) {
+  static async handleTicket(action, formData, interaction, client, env) {
     switch (action) {
       case 'create': {
         const {
@@ -157,8 +155,6 @@ export class ModalHandler {
         } = formData;
 
         try {
-          // 创建工单频道
-          const client = new DiscordClient(env.DISCORD_TOKEN);
           const category = await env.KV.get('ticketCategory');
           
           const channel = await client.channels.create(interaction.guild_id, {
@@ -223,7 +219,6 @@ export class ModalHandler {
           .run();
 
           // 关闭频道
-          const client = new DiscordClient(env.DISCORD_TOKEN);
           await client.channels.delete(interaction.channel_id);
 
           return {

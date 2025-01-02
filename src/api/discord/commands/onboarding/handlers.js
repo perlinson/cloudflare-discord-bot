@@ -1,12 +1,8 @@
 import { InteractionResponseType } from 'discord-interactions';
 import { OnboardingService } from './service.js';
-import { InteractionsAPI } from '../../resources/interactions.js';
-import { DiscordClient } from '../../client/index.js';
 
-export async function handleOnboardingCommands(interaction, env) {
+export async function handleOnboardingCommands(interaction, client, env) {
   const onboardingService = new OnboardingService(env);
-  const client = new DiscordClient(env.DISCORD_TOKEN, {}, env);
-  const interactionsApi = new InteractionsAPI(client);
   const subcommand = interaction.data.options?.[0];
   const userId = interaction.member.user.id;
   const guildId = interaction.guild_id;
@@ -36,7 +32,7 @@ export async function handleOnboardingCommands(interaction, env) {
         Promise.resolve().then(async () => {
           try {
             await onboardingService.updateUserProgress(userId, guildId, 1);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -45,7 +41,7 @@ export async function handleOnboardingCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Onboarding] Error starting onboarding:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -73,7 +69,7 @@ export async function handleOnboardingCommands(interaction, env) {
           try {
             const progress = await onboardingService.getUserProgress(userId, guildId);
             if (progress.completed) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -87,7 +83,7 @@ export async function handleOnboardingCommands(interaction, env) {
             const nextStep = progress.step + 1;
             if (nextStep > 5) {
               await onboardingService.completeOnboarding(userId, guildId);
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -98,7 +94,7 @@ export async function handleOnboardingCommands(interaction, env) {
             }
 
             await onboardingService.updateUserProgress(userId, guildId, nextStep);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -107,7 +103,7 @@ export async function handleOnboardingCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Onboarding] Error processing next step:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -135,7 +131,7 @@ export async function handleOnboardingCommands(interaction, env) {
           try {
             const progress = await onboardingService.getUserProgress(userId, guildId);
             if (progress.completed) {
-              await interactionsApi.editReply(
+              await client.interactions.editReply(
                 env.DISCORD_APPLICATION_ID,
                 interaction.token,
                 {
@@ -146,7 +142,7 @@ export async function handleOnboardingCommands(interaction, env) {
               return;
             }
 
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {
@@ -156,7 +152,7 @@ export async function handleOnboardingCommands(interaction, env) {
             );
           } catch (error) {
             console.error('[Onboarding] Error checking status:', error);
-            await interactionsApi.editReply(
+            await client.interactions.editReply(
               env.DISCORD_APPLICATION_ID,
               interaction.token,
               {

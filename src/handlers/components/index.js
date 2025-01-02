@@ -4,11 +4,8 @@ import { EmbedBuilder } from '../../api/discord/utils/EmbedBuilder.js';
 import { ComponentBuilder } from '../../api/discord/utils/ComponentBuilder.js';
 
 export class ComponentHandler {
-  static async handle(interaction, env, ctx) {
+  static async handle(interaction, client, env) {
     const { data: { custom_id, values } } = interaction;
-
-    // 初始化 Discord 客户端
-    const client = new DiscordClient(env.DISCORD_TOKEN);
 
     try {
       // 解析自定义 ID
@@ -206,8 +203,7 @@ export class ComponentHandler {
   }
 
   // 处理角色选择
-  static async processRoleSelection(roleIds, interaction, env) {
-    const client = new DiscordClient(env.DISCORD_TOKEN);
+  static async processRoleSelection(roleIds, interaction, client, env) {
 
     // 获取用户当前的角色
     const member = await client.guilds.getMember(
