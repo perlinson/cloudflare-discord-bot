@@ -40,7 +40,7 @@ A powerful Discord bot powered by Cloudflare Workers, providing AI image generat
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/globalcord.git
+git clone https://github.com/perlinson/globalcord-cloudflare-bot.git
 cd globalcord
 ```
 
@@ -111,7 +111,7 @@ We welcome contributions! Feel free to:
 
 1. 克隆仓库：
 ```bash
-git clone https://github.com/yourusername/globalcord.git
+git clone https://github.com/perlinson/globalcord-cloudflare-bot.git
 cd globalcord
 ```
 
